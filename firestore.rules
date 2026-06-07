@@ -1,0 +1,123 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function isValidUserPublic(data) {
+      return data.keys().hasAll(['createdAt', 'updatedAt']) 
+        && data.keys().size() >= 2
+        && (data.keys().hasAll(['displayName']) ? (data.displayName is string && data.displayName.size() <= 100) : true)
+        && (data.keys().hasAll(['photoURL']) ? (data.photoURL is string && data.photoURL.size() <= 1000) : true);
+    }
+
+    function isValidUserPrivate(data) {
+      return data.keys().hasAll(['email'])
+        && data.keys().size() == 1
+        && data.email is string && data.email.size() <= 320;
+    }
+
+    function isValidMessage(data) {
+      return data.keys().hasAll(['role', 'text', 'timestamp', 'createdAt'])
+        && data.keys().size() >= 4
+        && data.keys().size() <= 6
+        && data.role is string && (data.role == 'user' || data.role == 'model')
+        && data.text is string && data.text.size() <= 100000
+        && data.timestamp is number
+        && data.createdAt == request.time
+        && (data.keys().hasAll(['type']) ? (data.type is string && (
+          data.type == 'response'
+          || data.type == 'correction'
+          || data.type == 'insight'
+          || data.type == 'tip'
+          || data.type == 'proactive'
+        )) : true)
+        && (data.keys().hasAll(['tipKind']) ? (data.tipKind is string && (
+          data.tipKind == 'correction'
+          || data.tipKind == 'expression'
+          || data.tipKind == 'culture'
+        )) : true);
+    }
+
+    match /users/{userId} {
+      match /public/profile {
+        // Only owner can read, but you can change it to public if needed
+        allow get: if isSignedIn() && request.auth.uid == userId && isValidId(userId);
+        
+        allow create: if isSignedIn() 
+          && request.auth.uid == userId
+          && request.auth.token.email_verified == true
+          && isValidId(userId)
+          && isValidUserPublic(incoming())
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+
+        allow update: if isSignedIn()
+          && request.auth.uid == userId
+          && request.auth.token.email_verified == true
+          && isValidId(userId)
+          && isValidUserPublic(incoming())
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'updatedAt']);
+      }
+
+      match /private/info {
+        // Red team audit: Prevent non-owners from reading PII
+        allow get: if isSignedIn() && request.auth.uid == userId && isValidId(userId);
+
+        allow create: if isSignedIn()
+          && request.auth.uid == userId
+          && request.auth.token.email_verified == true
+          && isValidId(userId)
+          && isValidUserPrivate(incoming());
+          
+        allow update: if isSignedIn()
+          && request.auth.uid == userId
+          && request.auth.token.email_verified == true
+          && isValidId(userId)
+          && isValidUserPrivate(incoming())
+          && incoming().diff(existing()).affectedKeys().hasOnly(['email']);
+      }
+
+      match /messages/{messageId} {
+        // Red team audit: list query check
+        allow list: if isSignedIn() && request.auth.uid == userId && isValidId(userId);
+        
+        allow get: if isSignedIn() && request.auth.uid == userId && isValidId(userId) && isValidId(messageId);
+
+        allow create: if isSignedIn()
+          && request.auth.uid == userId
+          && request.auth.token.email_verified == true
+          && isValidId(userId)
+          && isValidId(messageId)
+          && isValidMessage(incoming());
+          // Note: createdAt == request.time is in isValidMessage helper
+          
+        // Deletion or modification of history might be restricted, but we can allow delete
+        allow delete: if isSignedIn()
+          && request.auth.uid == userId
+          && isValidId(userId)
+          && isValidId(messageId);
+      }
+    }
+  }
+}

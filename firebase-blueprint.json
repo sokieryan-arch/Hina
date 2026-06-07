@@ -1,0 +1,88 @@
+{
+  "entities": {
+    "UserPublic": {
+      "title": "User Public Profile",
+      "description": "Public profile information for a user",
+      "type": "object",
+      "properties": {
+        "displayName": {
+          "type": "string",
+          "description": "User's display name, max 100 chars"
+        },
+        "photoURL": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "timestamp"
+        },
+        "updatedAt": {
+          "type": "timestamp"
+        }
+      },
+      "required": ["createdAt", "updatedAt"]
+    },
+    "UserPrivate": {
+      "title": "User Private Info",
+      "description": "Private PII information",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string"
+        }
+      },
+      "required": ["email"]
+    },
+    "Message": {
+      "title": "Chat Message",
+      "description": "A single message in the chat history",
+      "type": "object",
+      "properties": {
+        "role": {
+          "type": "string",
+          "enum": ["user", "model"]
+        },
+        "text": {
+          "type": "string",
+          "description": "Content of the message"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["response", "correction", "insight", "tip", "proactive"]
+        },
+        "tipKind": {
+          "type": "string",
+          "enum": ["correction", "expression", "culture"]
+        },
+        "timestamp": {
+          "type": "number",
+          "description": "Original UI timestamp"
+        },
+        "createdAt": {
+          "type": "timestamp",
+          "description": "Server timestamp of creation"
+        }
+      },
+      "required": ["role", "text", "timestamp", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/public/profile": {
+      "schema": {
+        "$ref": "#/entities/UserPublic"
+      },
+      "description": "Public user profile"
+    },
+    "/users/{userId}/private/info": {
+      "schema": {
+        "$ref": "#/entities/UserPrivate"
+      },
+      "description": "Private user info like email"
+    },
+    "/users/{userId}/messages/{messageId}": {
+      "schema": {
+        "$ref": "#/entities/Message"
+      },
+      "description": "User's chat messages for history"
+    }
+  }
+}
