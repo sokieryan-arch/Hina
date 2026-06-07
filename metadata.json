@@ -1,0 +1,6 @@
+{
+  "name": "Hina",
+  "description": "An AI language exchange partner that proactively chats with you to help you learn English.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
