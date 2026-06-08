@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import type { ApiResult } from "./apiHandlers";
+import type { ApiResult } from "./apiHandlers.js";
 
 type Handler = (request: VercelRequest) => Promise<ApiResult>;
 

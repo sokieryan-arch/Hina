@@ -1,4 +1,4 @@
-import type { ProactivePromptInput } from "./proactive";
+import type { ProactivePromptInput } from "./proactive.js";
 
 function boundedString(value: unknown, maxLength: number): string | null {
   if (typeof value !== "string") return null;

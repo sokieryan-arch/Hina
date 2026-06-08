@@ -1,9 +1,9 @@
 import { GoogleGenAI, Modality, Type } from "@google/genai";
-import { HINA_SYSTEM_INSTRUCTION } from "../hinaPrompt";
-import { buildProactivePrompt } from "../proactive";
-import { normalizeLanguageTips } from "../../shared/languageTips";
-import type { ChatMessageInput } from "../requestGuards";
-import type { LanguagePartnerProvider, LanguagePartnerResponse, SpeechResponse } from "./types";
+import { HINA_SYSTEM_INSTRUCTION } from "../hinaPrompt.js";
+import { buildProactivePrompt } from "../proactive.js";
+import { normalizeLanguageTips } from "../../shared/languageTips.js";
+import type { ChatMessageInput } from "../requestGuards.js";
+import type { LanguagePartnerProvider, LanguagePartnerResponse, SpeechResponse } from "./types.js";
 
 function pcmBase64ToWavBase64(
   pcmBase64: string,

@@ -1,8 +1,8 @@
-import { resolveRequestIdentity, type RequestLike } from "./auth";
-import { buildProactivePromptInput, parseLastInteractionAt } from "./proactiveApi";
-import { normalizeProactiveSettings, shouldCreateProactiveNudge } from "./proactive";
-import { sanitizeChatMessages, type AuthMode } from "./requestGuards";
-import type { LanguagePartnerProvider } from "./providers/types";
+import { resolveRequestIdentity, type RequestLike } from "./auth.js";
+import { buildProactivePromptInput, parseLastInteractionAt } from "./proactiveApi.js";
+import { normalizeProactiveSettings, shouldCreateProactiveNudge } from "./proactive.js";
+import { sanitizeChatMessages, type AuthMode } from "./requestGuards.js";
+import type { LanguagePartnerProvider } from "./providers/types.js";
 
 interface RateLimiter {
   consume(key: string): {

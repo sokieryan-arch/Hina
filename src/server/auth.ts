@@ -1,4 +1,4 @@
-import type { AuthMode } from "./requestGuards";
+import type { AuthMode } from "./requestGuards.js";
 
 export interface RequestIdentity {
   isAuthenticated: boolean;

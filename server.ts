@@ -2,7 +2,7 @@ import "dotenv/config";
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
-import { apiHandlers, authMode } from "./src/server/runtime";
+import { apiHandlers, authMode } from "./src/server/runtime.js";
 
 const PORT = Number.parseInt(process.env.PORT || "3000", 10);
 

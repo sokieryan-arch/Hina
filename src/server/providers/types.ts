@@ -1,6 +1,6 @@
-import type { ChatMessageInput } from "../requestGuards";
-import type { LanguageTip } from "../../shared/languageTips";
-import type { ProactivePromptInput } from "../proactive";
+import type { ChatMessageInput } from "../requestGuards.js";
+import type { LanguageTip } from "../../shared/languageTips.js";
+import type { ProactivePromptInput } from "../proactive.js";
 
 export interface LanguagePartnerResponse {
   response: string;

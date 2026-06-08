@@ -1,6 +1,6 @@
-import { createApiHandlers } from "./apiHandlers";
-import { createLanguagePartnerProvider } from "./providers/geminiProvider";
-import { createRateLimiter, parseAuthMode } from "./requestGuards";
+import { createApiHandlers } from "./apiHandlers.js";
+import { createLanguagePartnerProvider } from "./providers/geminiProvider.js";
+import { createRateLimiter, parseAuthMode } from "./requestGuards.js";
 
 export const authMode = parseAuthMode(process.env.AI_AUTH_MODE, process.env.NODE_ENV);
 
