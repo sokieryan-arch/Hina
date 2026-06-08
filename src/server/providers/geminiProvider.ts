@@ -177,3 +177,24 @@ export function createLanguagePartnerProvider(): LanguagePartnerProvider {
 
   return new GeminiLanguagePartnerProvider(process.env.GEMINI_API_KEY);
 }
+
+export function createLazyLanguagePartnerProvider(): LanguagePartnerProvider {
+  let provider: LanguagePartnerProvider | null = null;
+
+  function getProvider() {
+    provider ??= createLanguagePartnerProvider();
+    return provider;
+  }
+
+  return {
+    async chat(messages) {
+      return getProvider().chat(messages);
+    },
+    async draftProactiveOpener(input) {
+      return getProvider().draftProactiveOpener(input);
+    },
+    async speak(text) {
+      return getProvider().speak(text);
+    },
+  };
+}

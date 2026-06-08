@@ -38,6 +38,40 @@ function getStatusCode(error: unknown, fallback = 500): number {
   return fallback;
 }
 
+function getPublicErrorBody(error: unknown, fallbackError: string) {
+  const message = error instanceof Error ? error.message : String(error);
+
+  if (message.includes("Missing GEMINI_API_KEY")) {
+    return {
+      error: "missing_gemini_api_key",
+      message: "GEMINI_API_KEY is not configured on the server.",
+    };
+  }
+
+  if (message.includes("Unsupported LLM_PROVIDER")) {
+    return {
+      error: "unsupported_llm_provider",
+      message: "LLM_PROVIDER is not supported by this deployment.",
+    };
+  }
+
+  if (message.includes("Authentication is required")) {
+    return {
+      error: "auth_required",
+      message: "Please log in before chatting with Hina.",
+    };
+  }
+
+  if (message.includes("Invalid authentication token")) {
+    return {
+      error: "auth_failed",
+      message: "The login token could not be verified by the server.",
+    };
+  }
+
+  return { error: fallbackError };
+}
+
 export function createApiHandlers(deps: ApiHandlerDependencies) {
   return {
     async chat(request: ApiRequest): Promise<ApiResult> {
@@ -59,7 +93,7 @@ export function createApiHandlers(deps: ApiHandlerDependencies) {
         return { status: 200, body: data };
       } catch (error) {
         console.error("Chat Error:", error);
-        return { status: getStatusCode(error), body: { error: "Failed to generate response" } };
+        return { status: getStatusCode(error), body: getPublicErrorBody(error, "chat_failed") };
       }
     },
 
@@ -100,7 +134,7 @@ export function createApiHandlers(deps: ApiHandlerDependencies) {
         };
       } catch (error) {
         console.error("Proactive Draft Error:", error);
-        return { status: getStatusCode(error), body: { error: "Failed to draft proactive opener" } };
+        return { status: getStatusCode(error), body: getPublicErrorBody(error, "proactive_draft_failed") };
       }
     },
 
@@ -127,7 +161,7 @@ export function createApiHandlers(deps: ApiHandlerDependencies) {
         return { status: 200, body: speech };
       } catch (error) {
         console.error("TTS Error:", error);
-        return { status: getStatusCode(error), body: { error: "Failed to generate TTS" } };
+        return { status: getStatusCode(error), body: getPublicErrorBody(error, "tts_failed") };
       }
     },
   };

@@ -62,6 +62,23 @@ function renderTipText(tip: LanguageTip) {
   return parts.join("\n");
 }
 
+function renderChatErrorMessage(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  if (message === "missing_gemini_api_key") {
+    return "Hina's server is missing GEMINI_API_KEY. Add it in Vercel Environment Variables, then redeploy.";
+  }
+  if (message === "auth_required") {
+    return "Please log in again before chatting with Hina.";
+  }
+  if (message === "auth_failed") {
+    return "Hina could not verify your login token. Check FIREBASE_PROJECT_ID in Vercel.";
+  }
+  if (message === "unsupported_llm_provider") {
+    return "Hina's server has an unsupported LLM_PROVIDER setting.";
+  }
+  return `I hit a snag on my side (${message || "chat_failed"}). Try me again in a moment?`;
+}
+
 export default function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
@@ -326,7 +343,7 @@ export default function App() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "Failed to chat");
+        throw new Error(data.error || "chat_failed");
       }
 
       setIsTyping(false);
@@ -369,7 +386,7 @@ export default function App() {
       const errorMessage: Message = {
         id: nanoid(),
         role: "model",
-        text: user ? "I hit a snag on my side. Try me again in a moment?" : "Please log in if this app is running with production auth enabled.",
+        text: user ? renderChatErrorMessage(err) : "Please log in if this app is running with production auth enabled.",
         type: "response",
         timestamp: Date.now(),
       };

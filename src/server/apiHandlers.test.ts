@@ -62,3 +62,30 @@ test("tts handler rejects empty text before calling provider", async () => {
   assert.equal(result.status, 400);
   assert.deepEqual(result.body, { error: "Missing text" });
 });
+
+test("chat handler returns an actionable code when Gemini key is missing", async () => {
+  const handlers = createApiHandlers({
+    authMode: "disabled",
+    provider: {
+      ...fakeProvider,
+      async chat() {
+        throw new Error("Missing GEMINI_API_KEY.");
+      },
+    },
+    chatLimiter: createRateLimiter({ limit: 5, windowMs: 60_000 }),
+    ttsLimiter: createRateLimiter({ limit: 5, windowMs: 60_000 }),
+    proactiveLimiter: createRateLimiter({ limit: 5, windowMs: 60_000 }),
+  });
+
+  const result = await handlers.chat({
+    body: { messages: [{ role: "user", text: "hello" }] },
+    headers: {},
+    ip: "127.0.0.1",
+  });
+
+  assert.equal(result.status, 500);
+  assert.deepEqual(result.body, {
+    error: "missing_gemini_api_key",
+    message: "GEMINI_API_KEY is not configured on the server.",
+  });
+});
