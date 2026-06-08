@@ -112,13 +112,19 @@ async function startServer() {
             if (retries === 0) {
               return res.status(503).json({ error: "The AI is currently experiencing high demand. Please try again later.", code: 503 });
             }
-            // Parse retryDelay from error if possible, else default to 2s, 4s, etc.
-            let delay = (4 - retries) * 2000;
+            // Instead of waiting massive delays which cause HTTP timeouts, fail fast.
+            let delay = (4 - retries) * 1000;
+            let externalDelayMatch = null;
             if (err.message) {
-              const delayMatch = err.message.match(/retry in ([\d\.]+)s/);
-              if (delayMatch && delayMatch[1]) {
-                delay = Math.ceil(parseFloat(delayMatch[1])) * 1000 + 1000;
-              }
+              externalDelayMatch = err.message.match(/retry in ([\d\.]+)s/);
+            }
+            if (externalDelayMatch && externalDelayMatch[1]) {
+               const seconds = parseFloat(externalDelayMatch[1]);
+               // If the required delay is larger than 5 seconds, just bounce the request
+               if (seconds > 5) {
+                 return res.status(429).json({ error: `The AI is temporarily out of breath. Let's wait about ${Math.ceil(seconds)} seconds and try again!`, code: 429 });
+               }
+               delay = Math.ceil(seconds) * 1000 + 500;
             }
             console.log(`Rate limited or Unavailable on Chat (503/429). Retrying in ${delay}ms... (${retries} retries left)`);
             await new Promise(r => setTimeout(r, delay));
@@ -177,13 +183,17 @@ async function startServer() {
             if (retries === 0) {
               return res.status(429).json({ error: "Voice generation is temporarily rate-limited. Please try again later.", code: 429 });
             }
-            // Parse retryDelay from error if possible, else default to 20s
-            let delay = 20000;
+            let delay = 2000;
+            let externalDelayMatch = null;
             if (err.message) {
-              const delayMatch = err.message.match(/retry in ([\d\.]+)s/);
-              if (delayMatch && delayMatch[1]) {
-                delay = Math.ceil(parseFloat(delayMatch[1])) * 1000 + 1000; // Add 1s buffer
-              }
+              externalDelayMatch = err.message.match(/retry in ([\d\.]+)s/);
+            }
+            if (externalDelayMatch && externalDelayMatch[1]) {
+               const seconds = parseFloat(externalDelayMatch[1]);
+               if (seconds > 5) {
+                 return res.status(429).json({ error: `Voice generation is taking a short breather. Please try again in ${Math.ceil(seconds)}s.`, code: 429 });
+               }
+               delay = Math.ceil(seconds) * 1000 + 500;
             }
             console.log(`Rate limited on TTS. Retrying in ${delay}ms... (${retries} retries left)`);
             await new Promise(r => setTimeout(r, delay));

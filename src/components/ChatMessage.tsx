@@ -111,7 +111,7 @@ export function ChatMessage({ message, isSpeaking, onPlayAudio, userPhotoUrl }: 
             <button 
               onClick={onPlayAudio}
               className={cn(
-                "absolute -right-8 bottom-0 p-1.5 rounded-full text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100",
+                "absolute -right-8 bottom-0 p-1.5 rounded-full text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-all opacity-50 hover:opacity-100 focus:opacity-100",
                 isSpeaking && "text-[#FF9F1C] dark:text-[#a58ebd] opacity-100"
               )}
               title="Play AI Voice"

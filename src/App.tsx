@@ -22,6 +22,7 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
+  const [preparingAudioId, setPreparingAudioId] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -132,20 +133,32 @@ export default function App() {
         audioRef.current.pause();
         audioRef.current = null;
       }
-      setSpeakingMessageId(messageId);
+      setSpeakingMessageId(null);
+      setPreparingAudioId(messageId);
       const res = await fetch("/api/tts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text })
       });
-      const data = await res.json();
+      
+      let data;
+      let rawText = "";
+      try {
+        const clonedRes = res.clone();
+        rawText = await clonedRes.text();
+        data = await res.json();
+      } catch (jsonError) {
+         setPreparingAudioId(null);
+         throw new Error(`TTS failed with status: ${res.status}. Output was not JSON. Raw body: ${rawText.substring(0, 500)}`);
+      }
+
       if (!res.ok) {
         if (res.status === 429) {
           console.warn("TTS Rate limited. Please wait.");
         } else {
            console.error("TTS failed:", data.error);
         }
-        setSpeakingMessageId(null);
+        setPreparingAudioId(null);
         return;
       }
       if (data.audio) {
@@ -153,13 +166,19 @@ export default function App() {
         const audio = new Audio(`data:${mimeType};base64,${data.audio}`);
         audioRef.current = audio;
         audio.onended = () => setSpeakingMessageId(null);
+        setPreparingAudioId(null);
+        setSpeakingMessageId(messageId);
         await audio.play();
       } else {
-        setSpeakingMessageId(null);
+        setPreparingAudioId(null);
       }
-    } catch(err) {
-      console.error(err);
-      setSpeakingMessageId(null);
+    } catch(err: any) {
+      if (err.message && err.message.includes("breather")) {
+        console.warn("TTS rate limited - playing fallback or ignoring.", err.message);
+      } else {
+        console.error(err);
+      }
+      setPreparingAudioId(null);
     }
   };
 
@@ -201,10 +220,25 @@ export default function App() {
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to chat: ${response.status}`);
+        // Try to read custom error text from backend
+        let errMsg = "servers are super busy";
+        try {
+           const errBody = await response.json();
+           if (errBody && errBody.error) errMsg = errBody.error;
+        } catch(e) {}
+        throw new Error(errMsg);
       }
 
-      const data = await response.json();
+      let data;
+      let rawText = "";
+      try {
+        const clonedRes = response.clone();
+        rawText = await clonedRes.text();
+        data = await response.json();
+      } catch (jsonErr) {
+        throw new Error(`Chat response was not valid JSON. Status: ${response.status}. Raw body: ${rawText.substring(0, 500)}`);
+      }
+      
       setIsTyping(false); 
       
       const botResponse: Message = {
@@ -217,7 +251,6 @@ export default function App() {
       
       if (!user) setMessages(prev => [...prev, botResponse]);
       await saveMessageToFirebase(botResponse);
-      playAudio(botResponse.text, botResponse.id);
 
       if (data.correction) {
         setIsTyping(true);
@@ -253,14 +286,20 @@ export default function App() {
         }, baseDelay + 2000); 
       }
 
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      if (err.message && err.message.includes("out of breath")) {
+         console.warn("Generation rate limited (out of breath) - displaying to user gracefully.", err.message);
+      } else {
+         console.error(err);
+      }
       setIsTyping(false);
       
+      const errorText = err.message && err.message.length > 5 && !err.message.includes("fetch") && !err.message.includes("JSON") ? err.message : "Uh oh, I'm feeling a little dizzy right now (servers are super busy)! Can we try again in a few minutes? 😅";
+
       const errorResponse: Message = {
         id: nanoid(),
         role: "model",
-        text: "Uh oh, I'm feeling a little dizzy right now (servers are super busy)! Can we try again in a few minutes? 😅",
+        text: errorText,
         type: "response",
         timestamp: Date.now()
       };
@@ -288,8 +327,8 @@ export default function App() {
           <div>
             <h1 className="font-bold text-lg text-[#2D2D2D] dark:text-white leading-tight tracking-tight">Hina</h1>
             <p className="text-xs text-[#8A817C] dark:text-[#a58ebd] font-medium flex items-center mt-0.5">
-              <span className={`w-2 h-2 rounded-full inline-block mr-1.5 ${isTyping ? 'bg-[#06D6A0]' : speakingMessageId ? 'bg-[#FF9F1C]' : 'bg-gray-300 dark:bg-[#4b305e]'}`}></span>
-              {isTyping ? "Hina is thinking..." : speakingMessageId ? "Hina is speaking..." : "Online"}
+              <span className={`w-2 h-2 rounded-full inline-block mr-1.5 ${isTyping ? 'bg-[#06D6A0]' : preparingAudioId ? 'bg-[#4EA8DE]' : speakingMessageId ? 'bg-[#FF9F1C]' : 'bg-gray-300 dark:bg-[#4b305e]'}`}></span>
+              {isTyping ? "Hina is thinking..." : preparingAudioId ? "Hina is preparing..." : speakingMessageId ? "Hina is speaking..." : "Online"}
             </p>
           </div>
         </div>
