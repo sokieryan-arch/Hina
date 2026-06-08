@@ -47,11 +47,7 @@
         },
         "type": {
           "type": "string",
-          "enum": ["response", "correction", "insight", "tip", "proactive"]
-        },
-        "tipKind": {
-          "type": "string",
-          "enum": ["correction", "expression", "culture"]
+          "enum": ["response", "correction", "insight"]
         },
         "timestamp": {
           "type": "number",

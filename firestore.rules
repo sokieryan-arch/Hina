@@ -38,23 +38,12 @@ service cloud.firestore {
     function isValidMessage(data) {
       return data.keys().hasAll(['role', 'text', 'timestamp', 'createdAt'])
         && data.keys().size() >= 4
-        && data.keys().size() <= 6
+        && data.keys().size() <= 5
         && data.role is string && (data.role == 'user' || data.role == 'model')
         && data.text is string && data.text.size() <= 100000
         && data.timestamp is number
         && data.createdAt == request.time
-        && (data.keys().hasAll(['type']) ? (data.type is string && (
-          data.type == 'response'
-          || data.type == 'correction'
-          || data.type == 'insight'
-          || data.type == 'tip'
-          || data.type == 'proactive'
-        )) : true)
-        && (data.keys().hasAll(['tipKind']) ? (data.tipKind is string && (
-          data.tipKind == 'correction'
-          || data.tipKind == 'expression'
-          || data.tipKind == 'culture'
-        )) : true);
+        && (data.keys().hasAll(['type']) ? (data.type is string && (data.type == 'response' || data.type == 'correction' || data.type == 'insight')) : true);
     }
 
     match /users/{userId} {
