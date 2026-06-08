@@ -1,4 +1,3 @@
-import type { Request } from "express";
 import type { AuthMode } from "./requestGuards";
 
 export interface RequestIdentity {
@@ -9,7 +8,7 @@ export interface RequestIdentity {
   rateLimitKey: string;
 }
 
-interface MinimalRequest {
+export interface RequestLike {
   headers: Record<string, string | string[] | undefined>;
   ip?: string;
   socket?: {
@@ -26,7 +25,7 @@ export function extractBearerToken(header: string | undefined): string | null {
   return match?.[1]?.trim() || null;
 }
 
-export function getRequestIp(request: MinimalRequest): string {
+export function getRequestIp(request: RequestLike): string {
   const forwardedFor = request.headers["x-forwarded-for"];
   const forwardedValue = Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor;
   const firstForwardedIp = forwardedValue?.split(",")[0]?.trim();
@@ -65,7 +64,7 @@ async function verifyFirebaseIdToken(token: string) {
 }
 
 export async function resolveRequestIdentity(
-  request: Request,
+  request: RequestLike,
   authMode: AuthMode,
 ): Promise<RequestIdentity> {
   const ip = getRequestIp(request);
