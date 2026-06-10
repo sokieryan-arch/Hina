@@ -1,6 +1,5 @@
 import express from "express";
 import path from "path";
-import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 
 const ai = new GoogleGenAI({
@@ -55,15 +54,12 @@ function pcmBase64ToWavBase64(pcmBase64: string, sampleRate = 24000, numChannels
   return wavBuffer.toString("base64");
 }
 
-async function startServer() {
-  const app = express();
-  const PORT = 3000;
+const app = express();
+app.use(express.json({ limit: "5mb" }));
 
-  app.use(express.json({ limit: "5mb" }));
-
-  // Chat API
-  app.post("/api/chat", async (req, res) => {
-    try {
+// Chat API
+app.post("/api/chat", async (req, res) => {
+  try {
       const { messages } = req.body; // array of { role: 'user' | 'model', text: string }
 
       if (!messages || !Array.isArray(messages)) {
@@ -230,24 +226,30 @@ async function startServer() {
   });
 
   // Vite middleware for development
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    // Production static file serving
-    const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
+  if (!process.env.VERCEL) {
+    async function startDevServer() {
+      const PORT = 3000;
+      if (process.env.NODE_ENV !== "production") {
+        const { createServer: createViteServer } = await import("vite");
+        const vite = await createViteServer({
+          server: { middlewareMode: true },
+          appType: "spa",
+        });
+        app.use(vite.middlewares);
+      } else {
+        // Production static file serving
+        const distPath = path.join(process.cwd(), "dist");
+        app.use(express.static(distPath));
+        app.get("*", (req, res) => {
+          res.sendFile(path.join(distPath, "index.html"));
+        });
+      }
+
+      app.listen(PORT, "0.0.0.0", () => {
+        console.log(`Server running on http://localhost:${PORT}`);
+      });
+    }
+    startDevServer();
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
-}
-
-startServer();
+export default app;

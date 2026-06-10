@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { User, updateProfile } from "firebase/auth";
-import { X, Settings, Image as ImageIcon, Trash2 } from "lucide-react";
+import { X, Settings, Image as ImageIcon, Trash2, Bot } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { collection, getDocs, doc, deleteDoc } from "firebase/firestore";
 import { db } from "../firebase";
@@ -10,9 +10,11 @@ interface SettingsModalProps {
   onClose: () => void;
   user: User | null;
   onClearHistory: () => void;
+  isProactiveEnabled: boolean;
+  setIsProactiveEnabled: (val: boolean) => void;
 }
 
-export function SettingsModal({ isOpen, onClose, user, onClearHistory }: SettingsModalProps) {
+export function SettingsModal({ isOpen, onClose, user, onClearHistory, isProactiveEnabled, setIsProactiveEnabled }: SettingsModalProps) {
   const [photoUrl, setPhotoUrl] = useState(user?.photoURL || "");
   const [isSaving, setIsSaving] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
@@ -102,6 +104,20 @@ export function SettingsModal({ isOpen, onClose, user, onClearHistory }: Setting
                       >
                         {isSaving ? "Saving..." : "Save Avatar"}
                       </button>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <label className="text-sm font-bold text-[#4A4A4A] dark:text-[#e5dceb] flex items-center gap-2">
+                       <Bot size={16} />
+                       Proactive Conversations (主动打扰)
+                    </label>
+                    <div className="flex items-center justify-between bg-[#F7F2E9] dark:bg-[#291a33] rounded-xl px-4 py-3 border border-[#E8E2D6] dark:border-[#3a2347]">
+                       <span className="text-sm text-[#8A817C] dark:text-[#89739c]">Allow Hina to occasionally start a conversation</span>
+                       <label className="relative inline-flex items-center cursor-pointer">
+                         <input type="checkbox" className="sr-only peer" checked={isProactiveEnabled} onChange={(e) => setIsProactiveEnabled(e.target.checked)} />
+                         <div className="w-11 h-6 bg-gray-300 dark:bg-[#4b305e] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-[#FF9F1C] dark:peer-checked:bg-[#660874]"></div>
+                       </label>
                     </div>
                   </div>
                   

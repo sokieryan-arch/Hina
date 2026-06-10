@@ -24,6 +24,7 @@ export default function App() {
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const [preparingAudioId, setPreparingAudioId] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isProactiveEnabled, setIsProactiveEnabled] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -94,6 +95,77 @@ export default function App() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
+
+  // Proactive Interruption Logic
+  useEffect(() => {
+    if (!isProactiveEnabled || isTyping || !isAuthReady || messages.length === 0) return;
+
+    // Check last message
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg.role === "model" && (lastMsg.type === "correction" || lastMsg.type === "insight")) {
+      return; 
+    }
+
+    const timeSinceLastMsg = Date.now() - lastMsg.timestamp;
+    const proactiveThreshold = 45000; // 45 seconds strictly for demo (typically 5 mins)
+
+    if (timeSinceLastMsg >= proactiveThreshold) {
+      handleProactiveTrigger();
+    } else {
+      const timeout = setTimeout(() => {
+        handleProactiveTrigger();
+      }, proactiveThreshold - timeSinceLastMsg + 1000); // Trigger just after threshold
+      return () => clearTimeout(timeout);
+    }
+  }, [messages, isProactiveEnabled, isTyping, isAuthReady]);
+
+  const handleProactiveTrigger = async () => {
+    if (isTyping) return;
+    setIsTyping(true);
+    
+    // Optimistically show typing, then fetch proactive message
+    try {
+      const chatHistory = messages.map(m => ({
+        role: m.role,
+        text: m.text
+      }));
+      chatHistory.push({ role: "user", text: "System Notification: The user has been idle for some time. Please ask a casual, localized English learning question or start an interesting natural conversation proactively." });
+      const recentMessages = chatHistory.slice(-10);
+
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: recentMessages }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        if (response.status === 429 || response.status === 503 || response.status === 500) {
+           console.warn("Proactive message skipped due to server load/rate limit.", errorData.error || response.statusText);
+           setIsTyping(false);
+           return;
+        }
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      setIsTyping(false); 
+      
+      const botResponse: Message = {
+        id: nanoid(),
+        role: "model",
+        text: data.response,
+        type: "response",
+        timestamp: Date.now()
+      };
+      
+      if (!user) setMessages(prev => [...prev, botResponse]);
+      await saveMessageToFirebase(botResponse);
+    } catch (err: any) {
+      console.warn("Proactive fetch failed, skipping till next interval:", err.message);
+      setIsTyping(false);
+    }
+  };
 
   const handleLogin = async () => {
     const provider = new GoogleAuthProvider();
@@ -320,9 +392,9 @@ export default function App() {
           <motion.div 
             animate={speakingMessageId ? { scale: [1, 1.15, 1], rotate: [-2, 2, -2] } : {}}
             transition={speakingMessageId ? { duration: 0.6, repeat: Infinity } : {}}
-            className="w-12 h-12 rounded-full border-2 border-white dark:border-[#1c1224] shadow-sm flex items-center justify-center overflow-hidden transition-colors duration-300 bg-[#FFD166] text-white"
+            className="w-12 h-12 rounded-full border-2 border-white dark:border-[#1c1224] shadow-sm flex items-center justify-center overflow-hidden transition-colors duration-300 bg-[#FFD166] dark:bg-[#342042] text-white dark:text-[#a58ebd]"
           >
-             <Sun size={28} strokeWidth={2.5} />
+             {theme === 'dark' ? <Moon size={28} strokeWidth={2.5} /> : <Sun size={28} strokeWidth={2.5} />}
           </motion.div>
           <div>
             <h1 className="font-bold text-lg text-[#2D2D2D] dark:text-white leading-tight tracking-tight">Hina</h1>
@@ -383,6 +455,7 @@ export default function App() {
                   isSpeaking={speakingMessageId === msg.id}
                   onPlayAudio={() => playAudio(msg.text, msg.id)}
                   userPhotoUrl={user?.photoURL}
+                  theme={theme}
                 />
               ))}
               {isTyping && (
@@ -394,6 +467,7 @@ export default function App() {
                     timestamp: Date.now(), 
                     isTyping: true 
                   }} 
+                  theme={theme}
                 />
               )}
               <div ref={messagesEndRef} className="h-1 py-1" />
@@ -435,7 +509,9 @@ export default function App() {
         isOpen={isSettingsOpen} 
         onClose={() => setIsSettingsOpen(false)} 
         user={user} 
-        onClearHistory={() => setMessages([])} 
+        onClearHistory={() => setMessages([])}
+        isProactiveEnabled={isProactiveEnabled}
+        setIsProactiveEnabled={setIsProactiveEnabled}
       />
     </div>
   );

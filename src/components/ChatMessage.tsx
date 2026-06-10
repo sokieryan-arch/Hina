@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Message } from "../types";
 import { cn } from "../lib/utils";
-import { Sparkles, Lightbulb, Bot, Volume2, Sun } from "lucide-react";
+import { Sparkles, Lightbulb, Bot, Volume2, Sun, Moon } from "lucide-react";
 import { motion } from "motion/react";
 
 interface ChatMessageProps {
@@ -10,17 +10,18 @@ interface ChatMessageProps {
   isSpeaking?: boolean;
   onPlayAudio?: () => void;
   userPhotoUrl?: string | null;
+  theme?: "light" | "dark";
 }
 
-export function ChatMessage({ message, isSpeaking, onPlayAudio, userPhotoUrl }: ChatMessageProps) {
+export function ChatMessage({ message, isSpeaking, onPlayAudio, userPhotoUrl, theme = "light" }: ChatMessageProps) {
   const isUser = message.role === "user";
   
   if (message.isTyping) {
     return (
       <div className="flex w-full mt-6 gap-4 max-w-[80%]">
         <div className="flex-shrink-0">
-          <div className="w-10 h-10 rounded-full flex items-center justify-center shadow-sm border border-transparent dark:border-[#3a2347] transition-colors duration-300 overflow-hidden bg-[#FFD166] text-white">
-            <Sun size={24} strokeWidth={2.5} />
+          <div className="w-10 h-10 rounded-full flex items-center justify-center shadow-sm border border-transparent dark:border-[#3a2347] transition-colors duration-300 overflow-hidden bg-[#FFD166] dark:bg-[#342042] text-white dark:text-[#a58ebd]">
+            {theme === 'dark' ? <Moon size={24} strokeWidth={2.5} /> : <Sun size={24} strokeWidth={2.5} />}
           </div>
         </div>
         <div>
@@ -88,7 +89,7 @@ export function ChatMessage({ message, isSpeaking, onPlayAudio, userPhotoUrl }: 
                message.type !== 'response' ? "bg-[#FFD166] dark:bg-[#660874] text-xl text-black dark:text-white" : "bg-[#FFD166] text-white"
              )}
            >
-             {message.type === 'correction' ? '✨' : (message.type === 'insight' ? '💡' : <Sun size={24} strokeWidth={2.5} />)}
+             {message.type === 'correction' ? '✨' : (message.type === 'insight' ? '💡' : (theme === 'dark' ? <Moon size={24} strokeWidth={2.5} /> : <Sun size={24} strokeWidth={2.5} />))}
            </motion.div>
         )}
       </div>
