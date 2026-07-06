@@ -59,6 +59,35 @@
         }
       },
       "required": ["role", "text", "timestamp", "createdAt"]
+    },
+    "ProactiveSettings": {
+      "title": "Proactive Settings",
+      "description": "Owner-only Hina proactive opener preferences",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "minHoursBetweenNudges": {
+          "type": "number"
+        },
+        "quietHoursStart": {
+          "type": "string"
+        },
+        "quietHoursEnd": {
+          "type": "string"
+        },
+        "favoriteTopics": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "updatedAt": {
+          "type": "timestamp"
+        }
+      },
+      "required": ["enabled", "minHoursBetweenNudges", "quietHoursStart", "quietHoursEnd", "favoriteTopics", "updatedAt"]
     }
   },
   "firestore": {
@@ -79,6 +108,12 @@
         "$ref": "#/entities/Message"
       },
       "description": "User's chat messages for history"
+    },
+    "/users/{userId}/settings/proactive": {
+      "schema": {
+        "$ref": "#/entities/ProactiveSettings"
+      },
+      "description": "User's proactive in-app opener settings"
     }
   }
 }

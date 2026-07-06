@@ -3,32 +3,125 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { nanoid } from "nanoid";
-import { Message, Role } from "./types";
+import { BillingSummary, Message, ProactiveSettings, UserProfile } from "./types";
 import { ChatMessage } from "./components/ChatMessage";
 import { SettingsModal } from "./components/SettingsModal";
-import { Send, Menu, Moon, Sun, LogIn, LogOut, Settings } from "lucide-react";
-import { auth, db, handleFirestoreError } from "./firebase";
+import { Send, Moon, Sun, LogIn, LogOut, Settings } from "lucide-react";
+import {
+  auth,
+  db,
+  handleFirestoreError,
+  loadRemoteProactiveSettings,
+  loadUserProfile,
+  saveRemoteProactiveSettings,
+} from "./firebase";
 import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, User, signOut } from "firebase/auth";
-import { collection, query, orderBy, onSnapshot, setDoc, doc, serverTimestamp, getDocs } from "firebase/firestore";
+import { collection, query, orderBy, onSnapshot, setDoc, doc, serverTimestamp } from "firebase/firestore";
 import { motion } from "motion/react";
+
+const DEFAULT_PROACTIVE_SETTINGS: ProactiveSettings = {
+  enabled: false,
+  minHoursBetweenNudges: 20,
+  quietHoursStart: "22:00",
+  quietHoursEnd: "08:00",
+  favoriteTopics: [],
+};
+
+const PROACTIVE_SETTINGS_KEY = "hina.proactive.settings";
+const PROACTIVE_LAST_CHECK_KEY = "hina.proactive.lastCheck";
+const THEME_STORAGE_KEY = "hina.theme";
+
+function storageKey(base: string, userId?: string) {
+  return userId ? `${base}.${userId}` : base;
+}
+
+function loadTheme(): "light" | "dark" {
+  if (typeof window === "undefined") return "light";
+  return window.localStorage.getItem(THEME_STORAGE_KEY) === "dark" ? "dark" : "light";
+}
+
+function loadProactiveSettings(userId?: string): ProactiveSettings {
+  try {
+    const raw = localStorage.getItem(storageKey(PROACTIVE_SETTINGS_KEY, userId));
+    if (!raw) return DEFAULT_PROACTIVE_SETTINGS;
+    const parsed = JSON.parse(raw) as Partial<ProactiveSettings>;
+    return {
+      enabled: parsed.enabled === true,
+      minHoursBetweenNudges: typeof parsed.minHoursBetweenNudges === "number"
+        ? Math.min(72, Math.max(6, parsed.minHoursBetweenNudges))
+        : DEFAULT_PROACTIVE_SETTINGS.minHoursBetweenNudges,
+      quietHoursStart: parsed.quietHoursStart || DEFAULT_PROACTIVE_SETTINGS.quietHoursStart,
+      quietHoursEnd: parsed.quietHoursEnd || DEFAULT_PROACTIVE_SETTINGS.quietHoursEnd,
+      favoriteTopics: Array.isArray(parsed.favoriteTopics)
+        ? parsed.favoriteTopics.filter((topic): topic is string => typeof topic === "string").slice(0, 3)
+        : [],
+    };
+  } catch {
+    return DEFAULT_PROACTIVE_SETTINGS;
+  }
+}
+
+function greeting(loggedIn: boolean): Message {
+  return {
+    id: nanoid(),
+    role: "model",
+    text: loggedIn
+      ? "Hey there! I just saw the craziest guy on the subway holding a tiny lizard! 🦎 What are you up to today?"
+      : "Hey there! Please login to save our chat history! 😊",
+    type: "response",
+    timestamp: Date.now(),
+  };
+}
+
+function profileFromFirebaseUser(user: User): UserProfile {
+  return {
+    displayName: user.displayName || user.email?.split("@")[0] || "Hina Friend",
+    photoURL: user.photoURL || null,
+  };
+}
+
+function renderChatErrorMessage(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  if (message === "quota_exceeded") {
+    return "Today's free chats are used up. Pro is coming soon.";
+  }
+  if (message === "billing_failed") {
+    return "I couldn't check today's chat quota. Try me again in a moment?";
+  }
+  return message && message.length > 5 && !message.includes("fetch") && !message.includes("JSON")
+    ? message
+    : "Uh oh, I'm feeling a little dizzy right now (servers are super busy)! Can we try again in a few minutes? 😅";
+}
+
+async function parseJsonResponse(response: Response) {
+  const rawText = await response.text();
+  if (!rawText) return {};
+  try {
+    return JSON.parse(rawText);
+  } catch {
+    throw new Error(`Response was not valid JSON. Status: ${response.status}. Raw body: ${rawText.substring(0, 500)}`);
+  }
+}
 
 export default function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isTyping, setIsTyping] = useState(false);
-  const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [theme, setTheme] = useState<"light" | "dark">(() => loadTheme());
   const [user, setUser] = useState<User | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [billing, setBilling] = useState<BillingSummary | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const [preparingAudioId, setPreparingAudioId] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isProactiveEnabled, setIsProactiveEnabled] = useState(false);
+  const [proactiveSettings, setProactiveSettings] = useState<ProactiveSettings>(() => loadProactiveSettings());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const userId = user?.uid;
 
-  // Auth setup
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -37,135 +130,194 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Use useEffect to update theme class
   useEffect(() => {
-    if (theme === 'dark') {
-      document.body.classList.add('dark');
-    } else {
-      document.body.classList.remove('dark');
-    }
+    document.body.classList.toggle("dark", theme === "dark");
+    document.documentElement.classList.toggle("dark", theme === "dark");
+    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
   }, [theme]);
 
-  // Sync messages from Firebase
+  const getJsonHeaders = useCallback(async () => {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (user) {
+      headers.Authorization = `Bearer ${await user.getIdToken()}`;
+    }
+    return headers;
+  }, [user]);
+
+  const refreshBilling = useCallback(async () => {
+    if (!user) {
+      setBilling(null);
+      return;
+    }
+    try {
+      const response = await fetch("/api/billing/me", {
+        headers: await getJsonHeaders(),
+      });
+      const data = await parseJsonResponse(response);
+      if (response.ok && data.billing) setBilling(data.billing);
+    } catch (error) {
+      console.error("Failed to load billing:", error);
+    }
+  }, [getJsonHeaders, user]);
+
   useEffect(() => {
     if (!isAuthReady) return;
-    
+    if (!user) {
+      setUserProfile(null);
+      setBilling(null);
+      setProactiveSettings(loadProactiveSettings());
+      return;
+    }
+
+    let cancelled = false;
+    setUserProfile(profileFromFirebaseUser(user));
+    setProactiveSettings(loadProactiveSettings(user.uid));
+
+    Promise.all([
+      loadUserProfile(user.uid),
+      loadRemoteProactiveSettings(user.uid),
+      refreshBilling(),
+    ]).then(([remoteProfile, remoteSettings]) => {
+      if (cancelled) return;
+      if (remoteProfile) setUserProfile(remoteProfile);
+      if (remoteSettings) {
+        setProactiveSettings(remoteSettings);
+        localStorage.setItem(storageKey(PROACTIVE_SETTINGS_KEY, user.uid), JSON.stringify(remoteSettings));
+      }
+    }).catch((error) => console.error("Failed to load user settings:", error));
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthReady, refreshBilling, user]);
+
+  useEffect(() => {
+    if (!isAuthReady) return;
+
     if (user) {
       const q = query(
         collection(db, `users/${user.uid}/messages`),
-        orderBy("timestamp", "asc")
+        orderBy("timestamp", "asc"),
       );
       const unsubscribe = onSnapshot(q, (snapshot) => {
-        const fetchedMessages = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
+        const fetchedMessages = snapshot.docs.map((messageDoc) => ({
+          id: messageDoc.id,
+          ...messageDoc.data(),
         })) as Message[];
-        
-        if (fetchedMessages.length > 0) {
-          setMessages(fetchedMessages);
-        } else {
-          // If no history, add greeting
-          const greeting: Message = {
-            id: nanoid(),
-            role: "model",
-            text: "Hey there! I just saw the craziest guy on the subway holding a tiny lizard! 🦎 What are you up to today?",
-            type: "response",
-            timestamp: Date.now()
-          };
-          setMessages([greeting]);
-        }
+
+        setMessages(fetchedMessages.length > 0 ? fetchedMessages : [greeting(true)]);
       }, (error) => {
         handleFirestoreError(error, "list" as any, `users/${user.uid}/messages`);
       });
       return () => unsubscribe();
-    } else {
-      // Not logged in
-      const greeting: Message = {
-        id: nanoid(),
-        role: "model",
-        text: "Hey there! Please login to save our chat history! 😊",
-        type: "response",
-        timestamp: Date.now()
-      };
-      setMessages([greeting]);
     }
+
+    setMessages([greeting(false)]);
   }, [user, isAuthReady]);
 
-  // Auto-scroll
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
 
-  // Proactive Interruption Logic
-  useEffect(() => {
-    if (!isProactiveEnabled || isTyping || !isAuthReady || messages.length === 0) return;
-
-    // Check last message
-    const lastMsg = messages[messages.length - 1];
-    if (lastMsg.role === "model" && (lastMsg.type === "correction" || lastMsg.type === "insight")) {
-      return; 
+  const updateProactiveSettings = useCallback((settings: ProactiveSettings) => {
+    setProactiveSettings(settings);
+    localStorage.setItem(storageKey(PROACTIVE_SETTINGS_KEY, userId), JSON.stringify(settings));
+    if (userId) {
+      saveRemoteProactiveSettings(userId, settings)
+        .then((remoteSettings) => {
+          setProactiveSettings(remoteSettings);
+          localStorage.setItem(storageKey(PROACTIVE_SETTINGS_KEY, userId), JSON.stringify(remoteSettings));
+        })
+        .catch((error) => console.error("Failed to save proactive settings:", error));
     }
+  }, [userId]);
 
-    const timeSinceLastMsg = Date.now() - lastMsg.timestamp;
-    const proactiveThreshold = 45000; // 45 seconds strictly for demo (typically 5 mins)
-
-    if (timeSinceLastMsg >= proactiveThreshold) {
-      handleProactiveTrigger();
-    } else {
-      const timeout = setTimeout(() => {
-        handleProactiveTrigger();
-      }, proactiveThreshold - timeSinceLastMsg + 1000); // Trigger just after threshold
-      return () => clearTimeout(timeout);
-    }
-  }, [messages, isProactiveEnabled, isTyping, isAuthReady]);
-
-  const handleProactiveTrigger = async () => {
-    if (isTyping) return;
-    setIsTyping(true);
-    
-    // Optimistically show typing, then fetch proactive message
+  const saveMessageToFirebase = useCallback(async (msg: Message) => {
+    if (!user) return;
     try {
-      const chatHistory = messages.map(m => ({
-        role: m.role,
-        text: m.text
+      const payload: Record<string, unknown> = {
+        role: msg.role,
+        text: msg.text,
+        type: msg.type || "response",
+        timestamp: msg.timestamp,
+        createdAt: serverTimestamp(),
+      };
+      if (msg.tipKind) payload.tipKind = msg.tipKind;
+      await setDoc(doc(db, `users/${user.uid}/messages`, msg.id), payload);
+    } catch (error) {
+      handleFirestoreError(error, "create" as any, `users/${user.uid}/messages/${msg.id}`);
+    }
+  }, [user]);
+
+  const handleProactiveTrigger = useCallback(async () => {
+    if (isTyping || !proactiveSettings.enabled) return;
+    setIsTyping(true);
+
+    try {
+      const chatHistory = messages.map((message) => ({
+        role: message.role,
+        text: message.text,
       }));
-      chatHistory.push({ role: "user", text: "System Notification: The user has been idle for some time. Please ask a casual, localized English learning question or start an interesting natural conversation proactively." });
-      const recentMessages = chatHistory.slice(-10);
+      chatHistory.push({
+        role: "user",
+        text: `System Notification: The user has been idle. Please ask a casual English learning question proactively. Favorite topics: ${proactiveSettings.favoriteTopics.join(", ") || "everyday life"}.`,
+      });
 
       const response = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: recentMessages }),
+        headers: await getJsonHeaders(),
+        body: JSON.stringify({ messages: chatHistory.slice(-10) }),
       });
-
+      const data = await parseJsonResponse(response);
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        if (response.status === 429 || response.status === 503 || response.status === 500) {
-           console.warn("Proactive message skipped due to server load/rate limit.", errorData.error || response.statusText);
-           setIsTyping(false);
-           return;
+        if (response.status === 429 || response.status === 503 || response.status === 500 || response.status === 402) {
+          console.warn("Proactive message skipped due to server load, quota, or rate limit.", data.error || response.statusText);
+          setIsTyping(false);
+          return;
         }
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+        throw new Error(data.error || `HTTP error! status: ${response.status}`);
       }
 
-      const data = await response.json();
-      setIsTyping(false); 
-      
-      const botResponse: Message = {
+      setIsTyping(false);
+      if (data.billing) setBilling(data.billing);
+
+      const proactiveMessage: Message = {
         id: nanoid(),
         role: "model",
         text: data.response,
-        type: "response",
-        timestamp: Date.now()
+        type: "proactive",
+        timestamp: Date.now(),
       };
-      
-      if (!user) setMessages(prev => [...prev, botResponse]);
-      await saveMessageToFirebase(botResponse);
+
+      if (!user) setMessages((prev) => [...prev, proactiveMessage]);
+      await saveMessageToFirebase(proactiveMessage);
     } catch (err: any) {
       console.warn("Proactive fetch failed, skipping till next interval:", err.message);
       setIsTyping(false);
     }
-  };
+  }, [getJsonHeaders, isTyping, messages, proactiveSettings, saveMessageToFirebase, user]);
+
+  useEffect(() => {
+    if (!proactiveSettings.enabled || isTyping || !isAuthReady || messages.length === 0) return;
+
+    const lastMessage = messages.filter((message) => message.type !== "correction" && message.type !== "insight").at(-1);
+    if (!lastMessage) return;
+
+    const now = Date.now();
+    const checkKey = storageKey(PROACTIVE_LAST_CHECK_KEY, user?.uid);
+    const lastCheck = Number(localStorage.getItem(checkKey) || 0);
+    if (now - lastCheck < 5 * 60 * 1000) return;
+
+    const minGapMs = proactiveSettings.minHoursBetweenNudges * 60 * 60 * 1000;
+    const idleMs = now - lastMessage.timestamp;
+    if (idleMs < minGapMs) return;
+
+    localStorage.setItem(checkKey, String(now));
+    const timeout = window.setTimeout(() => {
+      handleProactiveTrigger();
+    }, 1000);
+    return () => window.clearTimeout(timeout);
+  }, [handleProactiveTrigger, isAuthReady, isTyping, messages, proactiveSettings, user?.uid]);
 
   const handleLogin = async () => {
     const provider = new GoogleAuthProvider();
@@ -179,27 +331,14 @@ export default function App() {
   const handleLogout = async () => {
     try {
       await signOut(auth);
+      setUserProfile(null);
+      setBilling(null);
     } catch (error) {
       console.error("Logout failed:", error);
     }
   };
 
-  const saveMessageToFirebase = async (msg: Message) => {
-    if (!user) return;
-    try {
-      await setDoc(doc(db, `users/${user.uid}/messages`, msg.id), {
-        role: msg.role,
-        text: msg.text,
-        type: msg.type || "response",
-        timestamp: msg.timestamp,
-        createdAt: serverTimestamp()
-      });
-    } catch (error) {
-      handleFirestoreError(error, "create" as any, `users/${user.uid}/messages/${msg.id}`);
-    }
-  };
-
-  const playAudio = async (text: string, messageId: string) => {
+  const playAudio = useCallback(async (text: string, messageId: string) => {
     try {
       if (audioRef.current) {
         audioRef.current.pause();
@@ -209,30 +348,21 @@ export default function App() {
       setPreparingAudioId(messageId);
       const res = await fetch("/api/tts", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text })
+        headers: await getJsonHeaders(),
+        body: JSON.stringify({ text }),
       });
-      
-      let data;
-      let rawText = "";
-      try {
-        const clonedRes = res.clone();
-        rawText = await clonedRes.text();
-        data = await res.json();
-      } catch (jsonError) {
-         setPreparingAudioId(null);
-         throw new Error(`TTS failed with status: ${res.status}. Output was not JSON. Raw body: ${rawText.substring(0, 500)}`);
-      }
 
+      const data = await parseJsonResponse(res);
       if (!res.ok) {
         if (res.status === 429) {
-          console.warn("TTS Rate limited. Please wait.");
+          console.warn("TTS rate limited. Please wait.");
         } else {
-           console.error("TTS failed:", data.error);
+          console.error("TTS failed:", data.error);
         }
         setPreparingAudioId(null);
         return;
       }
+
       if (data.audio) {
         const mimeType = data.mimeType || "audio/wav";
         const audio = new Audio(`data:${mimeType};base64,${data.audio}`);
@@ -244,169 +374,142 @@ export default function App() {
       } else {
         setPreparingAudioId(null);
       }
-    } catch(err: any) {
-      if (err.message && err.message.includes("breather")) {
-        console.warn("TTS rate limited - playing fallback or ignoring.", err.message);
-      } else {
-        console.error(err);
-      }
+    } catch (err: any) {
+      console.error(err);
       setPreparingAudioId(null);
     }
-  };
+  }, [getJsonHeaders]);
 
   const handleSend = async () => {
     if (!inputValue.trim() || isTyping) return;
 
     const userText = inputValue.trim();
     setInputValue("");
-    
+
     const userMsg: Message = {
       id: nanoid(),
       role: "user",
       text: userText,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     };
 
-    // Optimistic update
-    setMessages(prev => [...prev, userMsg]);
+    setMessages((prev) => [...prev, userMsg]);
     setIsTyping(true);
-    
-    // Save to firebase
+
     if (user) {
-       await saveMessageToFirebase(userMsg);
+      await saveMessageToFirebase(userMsg);
     }
 
     try {
-      // Pass recent context connecting standard setMessages with chat context
-      const chatHistory = messages.map(m => ({
-        role: m.role,
-        text: m.text
+      const chatHistory = messages.map((message) => ({
+        role: message.role,
+        text: message.text,
       }));
       chatHistory.push({ role: "user", text: userText });
-      const recentMessages = chatHistory.slice(-10);
 
       const response = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: recentMessages }),
+        headers: await getJsonHeaders(),
+        body: JSON.stringify({ messages: chatHistory.slice(-10) }),
       });
+      const data = await parseJsonResponse(response);
 
       if (!response.ok) {
-        // Try to read custom error text from backend
-        let errMsg = "servers are super busy";
-        try {
-           const errBody = await response.json();
-           if (errBody && errBody.error) errMsg = errBody.error;
-        } catch(e) {}
-        throw new Error(errMsg);
+        if (data.billing) setBilling(data.billing);
+        throw new Error(data.error || "chat_failed");
       }
 
-      let data;
-      let rawText = "";
-      try {
-        const clonedRes = response.clone();
-        rawText = await clonedRes.text();
-        data = await response.json();
-      } catch (jsonErr) {
-        throw new Error(`Chat response was not valid JSON. Status: ${response.status}. Raw body: ${rawText.substring(0, 500)}`);
-      }
-      
-      setIsTyping(false); 
-      
+      setIsTyping(false);
+      if (data.billing) setBilling(data.billing);
+
       const botResponse: Message = {
         id: nanoid(),
         role: "model",
         text: data.response,
         type: "response",
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
-      
-      if (!user) setMessages(prev => [...prev, botResponse]);
+
+      if (!user) setMessages((prev) => [...prev, botResponse]);
       await saveMessageToFirebase(botResponse);
 
       if (data.correction) {
         setIsTyping(true);
-        setTimeout(async () => {
+        window.setTimeout(async () => {
           setIsTyping(false);
           const correctionMsg: Message = {
             id: nanoid(),
             role: "model",
             text: data.correction,
             type: "correction",
-            timestamp: Date.now()
+            timestamp: Date.now(),
           };
-          if (!user) setMessages(prev => [...prev, correctionMsg]);
+          if (!user) setMessages((prev) => [...prev, correctionMsg]);
           await saveMessageToFirebase(correctionMsg);
         }, 3000);
       }
 
       if (data.insight) {
         const baseDelay = data.correction ? 6000 : 3000;
-        setTimeout(() => setIsTyping(true), baseDelay - 1000);
+        window.setTimeout(() => setIsTyping(true), baseDelay - 1000);
 
-        setTimeout(async () => {
+        window.setTimeout(async () => {
           setIsTyping(false);
           const insightMsg: Message = {
             id: nanoid(),
             role: "model",
             text: data.insight,
             type: "insight",
-            timestamp: Date.now()
+            timestamp: Date.now(),
           };
-          if (!user) setMessages(prev => [...prev, insightMsg]);
+          if (!user) setMessages((prev) => [...prev, insightMsg]);
           await saveMessageToFirebase(insightMsg);
-        }, baseDelay + 2000); 
+        }, baseDelay + 2000);
       }
-
     } catch (err: any) {
-      if (err.message && err.message.includes("out of breath")) {
-         console.warn("Generation rate limited (out of breath) - displaying to user gracefully.", err.message);
-      } else {
-         console.error(err);
-      }
+      console.error(err);
       setIsTyping(false);
-      
-      const errorText = err.message && err.message.length > 5 && !err.message.includes("fetch") && !err.message.includes("JSON") ? err.message : "Uh oh, I'm feeling a little dizzy right now (servers are super busy)! Can we try again in a few minutes? 😅";
 
       const errorResponse: Message = {
         id: nanoid(),
         role: "model",
-        text: errorText,
+        text: renderChatErrorMessage(err),
         type: "response",
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
-      
-      setMessages(prev => [...prev, errorResponse]);
+
+      setMessages((prev) => [...prev, errorResponse]);
       if (user) {
         await saveMessageToFirebase(errorResponse);
       }
     }
   };
 
+  const HinaHeaderIcon = theme === "dark" ? Moon : Sun;
+
   return (
     <div className={`flex flex-col h-screen font-sans transition-colors duration-300 ${theme} bg-[#FDFBF7] dark:bg-[#1c1224] text-[#4A4A4A] dark:text-[#e5dceb] selection:bg-[#FFD166]/30 dark:selection:bg-[#660874]/50`}>
-      
-      {/* Header */}
       <header className="flex-none border-b border-[#E8E2D6] dark:border-[#3a2347] px-4 py-3 sm:px-8 flex items-center justify-between bg-white/50 dark:bg-[#1c1224]/80 backdrop-blur-sm z-10 sticky top-0 shadow-[0_1px_2px_-1px_rgba(0,0,0,0.05)] dark:shadow-none transition-colors duration-300">
         <div className="flex items-center gap-3">
-          <motion.div 
+          <motion.div
             animate={speakingMessageId ? { scale: [1, 1.15, 1], rotate: [-2, 2, -2] } : {}}
             transition={speakingMessageId ? { duration: 0.6, repeat: Infinity } : {}}
-            className="w-12 h-12 rounded-full border-2 border-white dark:border-[#1c1224] shadow-sm flex items-center justify-center overflow-hidden transition-colors duration-300 bg-[#FFD166] dark:bg-[#342042] text-white dark:text-[#a58ebd]"
+            className="w-12 h-12 rounded-full border-2 border-white dark:border-[#1c1224] shadow-sm flex items-center justify-center overflow-hidden transition-colors duration-300 bg-[#FFD166] text-white"
+            data-hina-avatar={theme === "dark" ? "moon" : "sun"}
           >
-             {theme === 'dark' ? <Moon size={28} strokeWidth={2.5} /> : <Sun size={28} strokeWidth={2.5} />}
+            <HinaHeaderIcon size={28} strokeWidth={2.5} />
           </motion.div>
           <div>
-            <h1 className="font-bold text-lg text-[#2D2D2D] dark:text-white leading-tight tracking-tight">Hina</h1>
+            <h1 className="font-bold text-lg text-[#2D2D2D] dark:text-white leading-tight tracking-normal">Hina</h1>
             <p className="text-xs text-[#8A817C] dark:text-[#a58ebd] font-medium flex items-center mt-0.5">
-              <span className={`w-2 h-2 rounded-full inline-block mr-1.5 ${isTyping ? 'bg-[#06D6A0]' : preparingAudioId ? 'bg-[#4EA8DE]' : speakingMessageId ? 'bg-[#FF9F1C]' : 'bg-gray-300 dark:bg-[#4b305e]'}`}></span>
+              <span className={`w-2 h-2 rounded-full inline-block mr-1.5 ${isTyping ? "bg-[#06D6A0]" : preparingAudioId ? "bg-[#4EA8DE]" : speakingMessageId ? "bg-[#FF9F1C]" : "bg-gray-300 dark:bg-[#4b305e]"}`} />
               {isTyping ? "Hina is thinking..." : preparingAudioId ? "Hina is preparing..." : speakingMessageId ? "Hina is speaking..." : "Online"}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           {user ? (
-            <button 
+            <button
               onClick={handleLogout}
               className="p-2 text-[#8A817C] dark:text-[#a58ebd] hover:bg-[#F7F2E9] dark:hover:bg-[#342042] rounded-full transition-colors flex items-center justify-center font-bold"
               title="Logout"
@@ -414,7 +517,7 @@ export default function App() {
               <LogOut size={20} />
             </button>
           ) : (
-            <button 
+            <button
               onClick={handleLogin}
               className="p-2 text-[#8A817C] dark:text-[#a58ebd] hover:bg-[#F7F2E9] dark:hover:bg-[#342042] rounded-full transition-colors flex items-center justify-center font-bold"
               title="Login with Google"
@@ -422,60 +525,60 @@ export default function App() {
               <LogIn size={20} />
             </button>
           )}
-          <button 
-            onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
+          <button
+            onClick={() => setTheme(theme === "light" ? "dark" : "light")}
             className="p-2 text-[#8A817C] dark:text-[#a58ebd] hover:bg-[#F7F2E9] dark:hover:bg-[#342042] rounded-full transition-colors"
+            title="Toggle theme"
           >
-            {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
+            {theme === "light" ? <Moon size={20} /> : <Sun size={20} />}
           </button>
-          <button 
+          <button
             onClick={() => setIsSettingsOpen(true)}
             className="p-2 text-[#8A817C] dark:text-[#a58ebd] hover:bg-[#F7F2E9] dark:hover:bg-[#342042] rounded-full transition-colors"
+            title="Settings"
           >
             <Settings size={20} />
           </button>
         </div>
       </header>
 
-      {/* Chat Area */}
       <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-6">
         <div className="max-w-3xl mx-auto flex flex-col justify-end min-h-full">
           <div className="text-center mb-8">
             <div className="inline-flex items-center justify-center space-x-2 bg-[#F7F2E9] dark:bg-[#342042] text-[#B5A48B] dark:text-[#d6bdec] border-[#E8E2D6] dark:border-[#4b305e] text-xs font-bold uppercase tracking-widest px-4 py-1.5 rounded-full border transition-colors duration-300">
-               <span>Your English Learning Partner</span>
+              <span>Your English Learning Partner</span>
             </div>
-            <p className="text-[#8A817C] dark:text-[#89739c] text-xs mt-3 opacity-60 font-medium">Messages are end-to-end simulated</p>
+            <p className="text-[#8A817C] dark:text-[#89739c] text-xs mt-3 opacity-60 font-medium">Hina can make mistakes. Consider verifying important information.</p>
           </div>
-          
+
           <div className="flex flex-col pb-4">
-             {messages.map((msg) => (
-                <ChatMessage 
-                  key={msg.id} 
-                  message={msg} 
-                  isSpeaking={speakingMessageId === msg.id}
-                  onPlayAudio={() => playAudio(msg.text, msg.id)}
-                  userPhotoUrl={user?.photoURL}
-                  theme={theme}
-                />
-              ))}
-              {isTyping && (
-                <ChatMessage 
-                  message={{ 
-                    id: 'typing', 
-                    role: 'model', 
-                    text: '', 
-                    timestamp: Date.now(), 
-                    isTyping: true 
-                  }} 
-                  theme={theme}
-                />
-              )}
-              <div ref={messagesEndRef} className="h-1 py-1" />
+            {messages.map((msg) => (
+              <ChatMessage
+                key={msg.id}
+                message={msg}
+                isSpeaking={speakingMessageId === msg.id}
+                onPlayAudio={() => playAudio(msg.text, msg.id)}
+                userPhotoUrl={userProfile?.photoURL || user?.photoURL}
+                theme={theme}
+              />
+            ))}
+            {isTyping && (
+              <ChatMessage
+                message={{
+                  id: "typing",
+                  role: "model",
+                  text: "",
+                  timestamp: Date.now(),
+                  isTyping: true,
+                }}
+                theme={theme}
+              />
+            )}
+            <div ref={messagesEndRef} className="h-1 py-1" />
           </div>
         </div>
       </div>
 
-      {/* Input Area */}
       <div className="flex-none bg-white dark:bg-[#1c1224] p-4 sm:p-6 border-t border-[#E8E2D6] dark:border-[#3a2347] pb-safe transition-colors duration-300">
         <div className="max-w-3xl mx-auto relative flex items-center bg-[#F7F2E9] dark:bg-[#291a33] rounded-[32px] p-2 pr-2 ring-1 ring-[#E8E2D6] dark:ring-[#3a2347] shadow-inner focus-within:ring-2 focus-within:ring-[#B5A48B] dark:focus-within:ring-[#660874] transition-all duration-300">
           <textarea
@@ -496,24 +599,25 @@ export default function App() {
             onClick={handleSend}
             disabled={!inputValue.trim() || isTyping}
             className="w-11 h-11 shrink-0 ml-2 bg-[#FF9F1C] dark:bg-[#660874] text-white hover:scale-105 transition-transform disabled:bg-[#E8E2D6] dark:disabled:bg-[#301f3b] disabled:text-[#B5A48B] dark:disabled:text-[#6a537a] disabled:hover:scale-100 rounded-full flex items-center justify-center shadow-md disabled:shadow-none transition-colors duration-300"
+            title="Send"
           >
             <Send size={18} className="-ml-0.5" />
           </button>
         </div>
-        <div className="text-center mt-2">
-           <span className="text-[11px] text-[#8A817C] dark:text-[#89739c] opacity-80">Hina can make mistakes. Consider verifying important information.</span>
-        </div>
       </div>
-      
-      <SettingsModal 
-        isOpen={isSettingsOpen} 
-        onClose={() => setIsSettingsOpen(false)} 
-        user={user} 
-        onClearHistory={() => setMessages([])}
-        isProactiveEnabled={isProactiveEnabled}
-        setIsProactiveEnabled={setIsProactiveEnabled}
+
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        user={user}
+        profile={userProfile}
+        billing={billing}
+        onProfileChange={setUserProfile}
+        onBillingChange={setBilling}
+        onClearHistory={() => setMessages([greeting(Boolean(user))])}
+        proactiveSettings={proactiveSettings}
+        onProactiveSettingsChange={updateProactiveSettings}
       />
     </div>
   );
 }
-

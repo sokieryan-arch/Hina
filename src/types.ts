@@ -1,11 +1,34 @@
 export type Role = "user" | "model";
+export type MessageType = "response" | "correction" | "insight" | "tip" | "proactive";
 
 export interface Message {
   id: string;
   role: Role;
   text: string;
-  // Metadata for AI messages
   isTyping?: boolean;
-  type?: "response" | "correction" | "insight";
+  type?: MessageType;
+  tipKind?: "correction" | "expression" | "culture";
   timestamp: number;
+}
+
+export interface ProactiveSettings {
+  enabled: boolean;
+  minHoursBetweenNudges: number;
+  quietHoursStart: string;
+  quietHoursEnd: string;
+  favoriteTopics: string[];
+}
+
+export interface UserProfile {
+  displayName: string;
+  photoURL: string | null;
+}
+
+export interface BillingSummary {
+  plan: "free" | "pro";
+  isPro: boolean;
+  dailyLimit: number | null;
+  usedToday: number;
+  remainingToday: number | null;
+  resetAt: string;
 }
