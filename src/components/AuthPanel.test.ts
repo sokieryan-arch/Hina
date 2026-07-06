@@ -6,7 +6,7 @@ import { AuthPanel, validateAuthForm } from "./AuthPanel";
 
 const noop = async () => {};
 
-test("auth panel renders Chinese account entry with Google instead of WeChat", () => {
+test("auth panel renders English account entry with Google instead of WeChat", () => {
   const markup = renderToStaticMarkup(React.createElement(AuthPanel, {
     onGoogleLogin: noop,
     onEmailLogin: noop,
@@ -14,20 +14,21 @@ test("auth panel renders Chinese account entry with Google instead of WeChat", (
     onPasswordReset: noop,
   }));
 
-  assert.match(markup, /登录/);
-  assert.match(markup, /注册/);
-  assert.match(markup, /忘记密码/);
-  assert.match(markup, /邮箱/);
-  assert.match(markup, /使用 Google 登录/);
-  assert.match(markup, /适合手机/);
+  assert.match(markup, /Sign in/);
+  assert.match(markup, /Create account/);
+  assert.match(markup, /Forgot password/);
+  assert.match(markup, /Email/);
+  assert.match(markup, /Continue with Google/);
+  assert.match(markup, /Made for mobile/);
+  assert.doesNotMatch(markup, /登录|注册|忘记密码|邮箱|适合手机/);
   assert.doesNotMatch(markup, /微信/);
   assert.doesNotMatch(markup, /WeChat/);
 });
 
 test("validateAuthForm protects email, password, and display name requirements", () => {
-  assert.equal(validateAuthForm("login", { email: "bad", password: "12345678" }), "请输入正确的邮箱地址。");
-  assert.equal(validateAuthForm("login", { email: "hina@example.com", password: "" }), "请输入密码。");
-  assert.equal(validateAuthForm("register", { email: "hina@example.com", password: "12345", displayName: "Hina" }), "密码至少需要 8 位。");
-  assert.equal(validateAuthForm("register", { email: "hina@example.com", password: "12345678", displayName: "" }), "请给自己起一个昵称。");
+  assert.equal(validateAuthForm("login", { email: "bad", password: "12345678" }), "Please enter a valid email address.");
+  assert.equal(validateAuthForm("login", { email: "hina@example.com", password: "" }), "Please enter your password.");
+  assert.equal(validateAuthForm("register", { email: "hina@example.com", password: "12345", displayName: "Hina" }), "Password must be at least 8 characters.");
+  assert.equal(validateAuthForm("register", { email: "hina@example.com", password: "12345678", displayName: "" }), "Please choose a display name.");
   assert.equal(validateAuthForm("reset", { email: "hina@example.com" }), null);
 });

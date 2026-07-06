@@ -21,9 +21,9 @@ interface AuthFormInput {
 }
 
 const modes: { key: AuthMode; label: string }[] = [
-  { key: "login", label: "登录" },
-  { key: "register", label: "注册" },
-  { key: "reset", label: "忘记密码" },
+  { key: "login", label: "Sign in" },
+  { key: "register", label: "Create account" },
+  { key: "reset", label: "Forgot password" },
 ];
 
 function isValidEmail(email: string) {
@@ -35,12 +35,12 @@ export function validateAuthForm(mode: AuthMode, input: AuthFormInput): string |
   const password = input.password ?? "";
   const displayName = input.displayName ?? "";
 
-  if (!email) return "请输入邮箱地址。";
-  if (!isValidEmail(email)) return "请输入正确的邮箱地址。";
+  if (!email) return "Please enter your email address.";
+  if (!isValidEmail(email)) return "Please enter a valid email address.";
   if (mode === "reset") return null;
-  if (!password) return "请输入密码。";
-  if (mode === "register" && password.length < 8) return "密码至少需要 8 位。";
-  if (mode === "register" && !displayName.trim()) return "请给自己起一个昵称。";
+  if (!password) return "Please enter your password.";
+  if (mode === "register" && password.length < 8) return "Password must be at least 8 characters.";
+  if (mode === "register" && !displayName.trim()) return "Please choose a display name.";
   return null;
 }
 
@@ -66,25 +66,25 @@ export function AuthPanel({
   const modeCopy = useMemo(() => {
     if (mode === "register") {
       return {
-        eyebrow: "创建账号",
-        title: "给 Hina 留一个常用邮箱",
-        submit: "创建账号",
-        helper: "注册后会自动进入聊天，历史记录和头像设置会保存在 Firebase。",
+        eyebrow: "Create account",
+        title: "Give Hina a reliable way to remember you",
+        submit: "Create account",
+        helper: "After sign-up, your chat history and profile settings are saved with Firebase.",
       };
     }
     if (mode === "reset") {
       return {
-        eyebrow: "找回密码",
-        title: "把重置邮件发到你的邮箱",
-        submit: "发送重置邮件",
-        helper: "如果没有收到邮件，请检查垃圾箱，或确认 Firebase 已开启邮箱密码登录。",
+        eyebrow: "Password reset",
+        title: "Send a reset link to your email",
+        submit: "Send reset email",
+        helper: "If the email does not arrive, check spam or confirm Email/Password is enabled in Firebase.",
       };
     }
     return {
-      eyebrow: "欢迎回来",
-      title: "登录后继续和 Hina 练英语",
-      submit: "进入 Hina",
-      helper: "可以使用邮箱密码，也可以直接用 Google 登录。",
+      eyebrow: "Welcome back",
+      title: "Sign in and keep practicing with Hina",
+      submit: "Enter Hina",
+      helper: "Use email and password, or continue with Google.",
     };
   }, [mode]);
 
@@ -112,7 +112,7 @@ export function AuthPanel({
         await onPasswordReset({ email: email.trim() });
         setMode("login");
         setPassword("");
-        setStatus("重置邮件已发送，请查看邮箱后回到这里登录。");
+        setStatus("Reset email sent. Check your inbox, then come back here to sign in.");
       }
     } catch (error) {
       setStatus(formatAuthErrorMessage(error));
@@ -154,20 +154,20 @@ export function AuthPanel({
               </div>
               <div>
                 <h1 className="text-3xl font-black tracking-normal text-[#292521]">Hina</h1>
-                <p className="text-sm font-bold text-[#8A817C]">国际版账户中心</p>
+                <p className="text-sm font-bold text-[#8A817C]">International account center</p>
               </div>
             </div>
 
             <div className="mt-10 max-w-[620px] space-y-6">
               <div className="inline-flex items-center gap-2 rounded-full border border-[#E8E2D6] bg-white/70 px-4 py-2 text-xs font-black text-[#7A6544] shadow-sm backdrop-blur">
                 <Sparkles size={15} />
-                适合手机端使用
+                Made for mobile
               </div>
               <p className="text-[2.65rem] font-black leading-[0.98] tracking-normal text-[#292521] sm:text-[4.2rem]">
-                先把账号安顿好，再开始今天的英语闲聊。
+                Settle in first. Then start today&apos;s English chat.
               </p>
               <p className="max-w-xl text-base font-medium leading-8 text-[#6F675D] sm:text-lg">
-                邮箱、Google、找回密码都放在同一个入口。Hina 会记住你的历史记录、头像和主动聊天偏好。
+                Email, Google sign-in, and password recovery all live in one calm entry point. Hina can remember your history, avatar, and proactive chat preferences.
               </p>
             </div>
           </section>
@@ -202,14 +202,14 @@ export function AuthPanel({
             <div className="mt-6 space-y-4">
               {mode === "register" && (
                 <label className="block">
-                  <span className="text-xs font-black text-[#7A7168]">昵称</span>
+                  <span className="text-xs font-black text-[#7A7168]">Display name</span>
                   <div className="mt-2 flex h-12 items-center gap-3 rounded-2xl border border-[#E8E2D6] bg-[#FDFBF7] px-4 focus-within:border-[#FF9F1C] focus-within:ring-2 focus-within:ring-[#FFD166]/60">
                     <UserRound size={18} className="text-[#B5A48B]" />
                     <input
                       value={displayName}
                       onChange={(event) => setDisplayName(event.target.value)}
                       className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none placeholder:text-[#B5A48B]"
-                      placeholder="比如：Sokie"
+                      placeholder="Example: Sokie"
                       autoComplete="name"
                     />
                   </div>
@@ -217,7 +217,7 @@ export function AuthPanel({
               )}
 
               <label className="block">
-                <span className="text-xs font-black text-[#7A7168]">邮箱</span>
+                <span className="text-xs font-black text-[#7A7168]">Email</span>
                 <div className="mt-2 flex h-12 items-center gap-3 rounded-2xl border border-[#E8E2D6] bg-[#FDFBF7] px-4 focus-within:border-[#FF9F1C] focus-within:ring-2 focus-within:ring-[#FFD166]/60">
                   <Mail size={18} className="text-[#B5A48B]" />
                   <input
@@ -233,7 +233,7 @@ export function AuthPanel({
 
               {mode !== "reset" && (
                 <label className="block">
-                  <span className="text-xs font-black text-[#7A7168]">密码</span>
+                  <span className="text-xs font-black text-[#7A7168]">Password</span>
                   <div className="mt-2 flex h-12 items-center gap-3 rounded-2xl border border-[#E8E2D6] bg-[#FDFBF7] px-4 focus-within:border-[#FF9F1C] focus-within:ring-2 focus-within:ring-[#FFD166]/60">
                     <KeyRound size={18} className="text-[#B5A48B]" />
                     <input
@@ -241,14 +241,14 @@ export function AuthPanel({
                       value={password}
                       onChange={(event) => setPassword(event.target.value)}
                       className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none placeholder:text-[#B5A48B]"
-                      placeholder={mode === "register" ? "至少 8 位" : "输入密码"}
+                      placeholder={mode === "register" ? "At least 8 characters" : "Enter your password"}
                       autoComplete={mode === "register" ? "new-password" : "current-password"}
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword((current) => !current)}
                       className="rounded-full p-1.5 text-[#8A817C] transition hover:bg-white hover:text-[#292521]"
-                      title={showPassword ? "隐藏密码" : "显示密码"}
+                      title={showPassword ? "Hide password" : "Show password"}
                     >
                       {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
@@ -268,7 +268,7 @@ export function AuthPanel({
                 disabled={isBusy}
                 className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-[#FF9F1C] px-4 text-sm font-black text-white shadow-[0_14px_30px_rgba(255,159,28,0.22)] transition hover:-translate-y-0.5 disabled:translate-y-0 disabled:bg-[#E8E2D6] disabled:text-[#A89D8A] disabled:shadow-none"
               >
-                {busyAction === "email" ? "处理中..." : modeCopy.submit}
+                {busyAction === "email" ? "Working..." : modeCopy.submit}
                 {busyAction !== "email" && <ArrowRight size={17} />}
               </button>
 
@@ -276,7 +276,7 @@ export function AuthPanel({
                 <>
                   <div className="flex items-center gap-3 text-xs font-bold text-[#B5A48B]">
                     <span className="h-px flex-1 bg-[#E8E2D6]" />
-                    或
+                    or
                     <span className="h-px flex-1 bg-[#E8E2D6]" />
                   </div>
 
@@ -287,7 +287,7 @@ export function AuthPanel({
                     className="flex h-12 w-full items-center justify-center gap-3 rounded-2xl border border-[#DCE5EF] bg-white text-sm font-black text-[#263747] shadow-sm transition hover:-translate-y-0.5 hover:border-[#AFC8E5] disabled:translate-y-0 disabled:opacity-50"
                   >
                     <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#4285F4] text-[13px] font-black text-white">G</span>
-                    使用 Google 登录
+                    Continue with Google
                   </button>
                 </>
               )}
@@ -295,16 +295,16 @@ export function AuthPanel({
               <div className="flex items-center justify-between gap-3 text-sm font-bold text-[#8A817C]">
                 {mode !== "login" ? (
                   <button type="button" onClick={() => switchMode("login")} className="hover:text-[#292521]">
-                    返回登录
+                    Back to sign in
                   </button>
                 ) : (
                   <button type="button" onClick={() => switchMode("reset")} className="hover:text-[#292521]">
-                    忘记密码？
+                    Forgot password?
                   </button>
                 )}
                 {mode !== "register" && (
                   <button type="button" onClick={() => switchMode("register")} className="hover:text-[#292521]">
-                    创建新账号
+                    Create a new account
                   </button>
                 )}
               </div>
@@ -312,7 +312,7 @@ export function AuthPanel({
 
             <div className="mt-6 flex items-start gap-2 rounded-2xl bg-[#F1F7F5] px-4 py-3 text-xs font-bold leading-5 text-[#3D695E]">
               <CheckCircle2 size={16} className="mt-0.5 shrink-0" />
-              国际版继续使用 Firebase Auth，第三方登录入口统一走 Google。
+              The international edition keeps Firebase Auth, with Google as the third-party sign-in option.
             </div>
           </section>
         </motion.div>

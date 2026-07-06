@@ -22,30 +22,30 @@ export function isPopupFallbackError(error: unknown): boolean {
 export function formatAuthErrorMessage(error: unknown): string {
   switch (getAuthErrorCode(error)) {
     case "auth/unauthorized-domain":
-      return "当前预览域名没有加入 Firebase 授权域名。请使用 http://localhost 打开，或在 Firebase Authentication 里添加这个域名。";
+      return "This preview domain is not authorized in Firebase. Open the preview with http://localhost or add this domain in Firebase Authentication.";
     case "auth/operation-not-allowed":
-      return "这个 Firebase 项目还没有开启对应的登录方式。";
+      return "This Firebase project has not enabled that sign-in method yet.";
     case "auth/popup-blocked":
-      return "浏览器拦截了 Google 登录弹窗。";
+      return "Your browser blocked the Google sign-in popup.";
     case "auth/popup-closed-by-user":
-      return "Google 登录窗口已关闭，登录还没有完成。";
+      return "The Google sign-in window was closed before login finished.";
     case "auth/network-request-failed":
-      return "暂时连不上 Firebase，请检查网络后再试。";
+      return "Firebase could not be reached. Please check the network and try again.";
     case "auth/web-storage-unsupported":
-      return "当前浏览器阻止了登录所需的本地存储。请尝试用 Chrome、Edge 或 Safari 打开。";
+      return "This browser blocks the local storage sign-in needs. Try opening Hina in Chrome, Edge, or Safari.";
     case "auth/email-already-in-use":
-      return "这个邮箱已经注册过了。";
+      return "This email is already registered.";
     case "auth/invalid-email":
-      return "请输入正确的邮箱地址。";
+      return "Please enter a valid email address.";
     case "auth/invalid-credential":
     case "auth/user-not-found":
     case "auth/wrong-password":
-      return "邮箱或密码不正确。";
+      return "The email or password is incorrect.";
     case "auth/weak-password":
-      return "密码至少需要 8 位。";
+      return "Password must be at least 8 characters.";
     case "auth/too-many-requests":
-      return "尝试次数太多了，请稍后再试。";
+      return "Too many attempts. Please try again later.";
     default:
-      return "登录请求没有成功，请稍后再试。";
+      return "Sign-in did not finish. Please try again.";
   }
 }

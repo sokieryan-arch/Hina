@@ -365,7 +365,7 @@ export default function App() {
     } catch (error) {
       console.error("Login failed:", error);
       if (isPopupFallbackError(error)) {
-        setAuthFeedback("登录弹窗被拦截，正在切换到 Google 跳转登录...");
+        setAuthFeedback("The sign-in popup was blocked. Redirecting to Google sign-in...");
         try {
           await signInWithRedirect(auth, provider);
           return;
@@ -568,7 +568,7 @@ export default function App() {
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#FFD166] text-white shadow-sm">
             <Sun size={28} strokeWidth={2.5} />
           </div>
-          <p className="text-sm font-bold text-[#8A817C]">Hina 正在准备登录状态...</p>
+          <p className="text-sm font-bold text-[#8A817C]">Hina is preparing your session...</p>
         </div>
       </div>
     );
