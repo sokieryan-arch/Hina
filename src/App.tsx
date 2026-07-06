@@ -17,9 +17,10 @@ import {
   loadUserProfile,
   saveRemoteProactiveSettings,
 } from "./firebase";
-import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, User, signOut } from "firebase/auth";
+import { signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, onAuthStateChanged, User, signOut } from "firebase/auth";
 import { collection, query, orderBy, onSnapshot, setDoc, doc, serverTimestamp } from "firebase/firestore";
 import { motion } from "motion/react";
+import { formatAuthErrorMessage, isPopupFallbackError } from "./authErrorMessage";
 
 const DEFAULT_PROACTIVE_SETTINGS: ProactiveSettings = {
   enabled: false,
@@ -118,6 +119,8 @@ export default function App() {
   const [preparingAudioId, setPreparingAudioId] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [proactiveSettings, setProactiveSettings] = useState<ProactiveSettings>(() => loadProactiveSettings());
+  const [authFeedback, setAuthFeedback] = useState<string | null>(null);
+  const [isLoginPending, setIsLoginPending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const userId = user?.uid;
@@ -125,9 +128,32 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
+      if (currentUser) setAuthFeedback(null);
+      setIsLoginPending(false);
       setIsAuthReady(true);
     });
     return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    getRedirectResult(auth)
+      .then((result) => {
+        if (cancelled) return;
+        if (result?.user) {
+          setAuthFeedback(null);
+          setIsLoginPending(false);
+        }
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        console.error("Redirect login failed:", error);
+        setAuthFeedback(formatAuthErrorMessage(error));
+        setIsLoginPending(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -321,10 +347,28 @@ export default function App() {
 
   const handleLogin = async () => {
     const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: "select_account" });
+    setAuthFeedback(null);
+    setIsLoginPending(true);
     try {
       await signInWithPopup(auth, provider);
+      setAuthFeedback(null);
+      setIsLoginPending(false);
     } catch (error) {
       console.error("Login failed:", error);
+      if (isPopupFallbackError(error)) {
+        setAuthFeedback("The sign-in popup was blocked. Redirecting to Google sign-in...");
+        try {
+          await signInWithRedirect(auth, provider);
+          return;
+        } catch (redirectError) {
+          console.error("Redirect login failed:", redirectError);
+          setAuthFeedback(formatAuthErrorMessage(redirectError));
+        }
+      } else {
+        setAuthFeedback(formatAuthErrorMessage(error));
+      }
+      setIsLoginPending(false);
     }
   };
 
@@ -333,6 +377,7 @@ export default function App() {
       await signOut(auth);
       setUserProfile(null);
       setBilling(null);
+      setAuthFeedback(null);
     } catch (error) {
       console.error("Logout failed:", error);
     }
@@ -519,8 +564,11 @@ export default function App() {
           ) : (
             <button
               onClick={handleLogin}
-              className="p-2 text-[#8A817C] dark:text-[#a58ebd] hover:bg-[#F7F2E9] dark:hover:bg-[#342042] rounded-full transition-colors flex items-center justify-center font-bold"
-              title="Login with Google"
+              disabled={isLoginPending}
+              className="p-2 text-[#8A817C] dark:text-[#a58ebd] hover:bg-[#F7F2E9] dark:hover:bg-[#342042] rounded-full transition-colors flex items-center justify-center font-bold disabled:opacity-50 disabled:cursor-wait"
+              title={isLoginPending ? "Opening Google sign-in" : "Login with Google"}
+              aria-label={isLoginPending ? "Opening Google sign-in" : "Login with Google"}
+              aria-busy={isLoginPending}
             >
               <LogIn size={20} />
             </button>
@@ -541,6 +589,12 @@ export default function App() {
           </button>
         </div>
       </header>
+
+      {authFeedback && !user && (
+        <div className="flex-none border-b border-[#E8E2D6] dark:border-[#3a2347] bg-[#FFF7E6] dark:bg-[#2d1b39] px-4 py-2 text-sm text-[#7A4B00] dark:text-[#f0c987]">
+          <div className="mx-auto max-w-3xl">{authFeedback}</div>
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-6">
         <div className="max-w-3xl mx-auto flex flex-col justify-end min-h-full">
