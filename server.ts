@@ -1,21 +1,30 @@
 import express from "express";
 import path from "path";
 import { GoogleGenAI, Type, Modality } from "@google/genai";
+import OpenAI from "openai";
 import { canUseChat, createBillingStoreFromEnv } from "./src/server/billing.js";
-import { readGeminiApiKey } from "./src/server/geminiConfig.js";
-import { OperationTimeoutError, withTimeout } from "./src/server/timeout.js";
+import { buildOpenAIChatMessages, readAIConfig, type HinaHistoryMessage } from "./src/server/aiConfig.js";
+import { isOperationTimeoutError, withTimeout } from "./src/server/timeout.js";
 
-const geminiApiKey = readGeminiApiKey();
-const GEMINI_REQUEST_TIMEOUT_MS = Number.parseInt(process.env.GEMINI_REQUEST_TIMEOUT_MS || "20000", 10);
-const ai = new GoogleGenAI({
-  apiKey: geminiApiKey || undefined,
-  httpOptions: {
-    timeout: GEMINI_REQUEST_TIMEOUT_MS,
-    headers: {
-      "User-Agent": "aistudio-build",
+const aiConfig = readAIConfig();
+const REQUEST_TIMEOUT_MS = aiConfig.timeoutMs;
+const geminiAI = aiConfig.provider === "gemini"
+  ? new GoogleGenAI({
+    apiKey: aiConfig.apiKey,
+    httpOptions: {
+      timeout: REQUEST_TIMEOUT_MS,
+      headers: {
+        "User-Agent": "aistudio-build",
+      },
     },
-  },
-});
+  })
+  : null;
+const openAI = aiConfig.provider === "openai"
+  ? new OpenAI({
+    apiKey: aiConfig.apiKey,
+    timeout: REQUEST_TIMEOUT_MS,
+  })
+  : null;
 
 const billingStore = createBillingStoreFromEnv();
 
@@ -33,6 +42,45 @@ Rules:
 - Default to English, but if I type in Chinese, understand and encourage me gently.
 - Always output a valid JSON format matching the schema requested.
 `;
+
+const HINA_GEMINI_RESPONSE_SCHEMA = {
+  type: Type.OBJECT,
+  properties: {
+    response: {
+      type: Type.STRING,
+      description: "Your friendly conversational response to the user's message. Read their prompt carefully and reply.",
+    },
+    correction: {
+      type: Type.STRING,
+      description: "If there were any grammar or spelling errors in the user's message, gently correct them here. If no errors, leave empty or omit.",
+    },
+    insight: {
+      type: Type.STRING,
+      description: "A short, fun tip about an idiom or vocabulary word used in the conversation. If none, leave empty.",
+    },
+  },
+  required: ["response"],
+};
+
+const HINA_OPENAI_RESPONSE_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    response: {
+      type: "string",
+      description: "Your friendly conversational response to the user's message. Read their prompt carefully and reply.",
+    },
+    correction: {
+      type: "string",
+      description: "If there were any grammar or spelling errors in the user's message, gently correct them here. If no errors, use an empty string.",
+    },
+    insight: {
+      type: "string",
+      description: "A short, fun tip about an idiom or vocabulary word used in the conversation. If none, use an empty string.",
+    },
+  },
+  required: ["response"],
+};
 
 function pcmBase64ToWavBase64(pcmBase64: string, sampleRate = 24000, numChannels = 1, bitsPerSample = 16): string {
   const pcmBytes = Buffer.from(pcmBase64, "base64");
@@ -68,6 +116,151 @@ function getRequestIp(req: express.Request) {
 function extractBearerToken(header: string | undefined) {
   const match = header?.match(/^bearer\s+(.+)$/i);
   return match?.[1]?.trim() || null;
+}
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error || "");
+}
+
+function getErrorStatus(error: unknown) {
+  if (!error || typeof error !== "object") return null;
+  const status = (error as { status?: unknown }).status;
+  if (typeof status === "number") return status;
+  if (typeof status === "string") return status;
+  return null;
+}
+
+function getErrorCode(error: unknown) {
+  if (!error || typeof error !== "object") return null;
+  const code = (error as { code?: unknown }).code;
+  if (typeof code === "string") return code;
+  const type = (error as { type?: unknown }).type;
+  return typeof type === "string" ? type : null;
+}
+
+function isQuotaExhaustedError(error: unknown) {
+  const message = getErrorMessage(error).toLowerCase();
+  const code = getErrorCode(error)?.toLowerCase();
+  return code === "insufficient_quota"
+    || code === "resource_exhausted"
+    || message.includes("quota exceeded")
+    || message.includes("exceeded your current quota")
+    || message.includes("insufficient quota");
+}
+
+function isRetryableAIError(error: unknown) {
+  const message = getErrorMessage(error);
+  const status = getErrorStatus(error);
+  const code = getErrorCode(error);
+  return status === 429
+    || status === 503
+    || status === "UNAVAILABLE"
+    || status === "RESOURCE_EXHAUSTED"
+    || code === "rate_limit_exceeded"
+    || code === "server_error"
+    || message.includes("503")
+    || message.includes("429")
+    || message.includes("Quota exceeded");
+}
+
+function getExternalRetryDelayMs(error: unknown, fallbackDelayMs: number) {
+  const match = getErrorMessage(error).match(/retry in ([\d.]+)s/i);
+  if (!match?.[1]) return { delayMs: fallbackDelayMs, requestedSeconds: null };
+  const seconds = Number.parseFloat(match[1]);
+  if (!Number.isFinite(seconds)) return { delayMs: fallbackDelayMs, requestedSeconds: null };
+  return { delayMs: Math.ceil(seconds) * 1000 + 500, requestedSeconds: seconds };
+}
+
+async function generateChatResponse(messages: HinaHistoryMessage[]) {
+  if (aiConfig.provider === "openai" && openAI) {
+    const response = await withTimeout(openAI.chat.completions.create({
+      model: aiConfig.chatModel,
+      messages: buildOpenAIChatMessages(HINA_SYSTEM_INSTRUCTION, messages),
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "hina_chat_response",
+          strict: false,
+          schema: HINA_OPENAI_RESPONSE_SCHEMA,
+        },
+      },
+    }), REQUEST_TIMEOUT_MS, "OpenAI chat request");
+
+    const text = response.choices[0]?.message?.content;
+    if (!text) throw new Error("No text from model");
+    return JSON.parse(text.trim());
+  }
+
+  if (aiConfig.provider === "gemini" && geminiAI) {
+    const contents = messages.map((msg) => ({
+      role: msg.role,
+      parts: [{ text: msg.text }],
+    }));
+
+    const response = await withTimeout(geminiAI.models.generateContent({
+      model: "gemini-3.5-flash",
+      contents,
+      config: {
+        systemInstruction: HINA_SYSTEM_INSTRUCTION,
+        responseMimeType: "application/json",
+        responseSchema: HINA_GEMINI_RESPONSE_SCHEMA,
+      },
+    }), REQUEST_TIMEOUT_MS, "Gemini chat request");
+
+    if (!response?.text) throw new Error("No text from model");
+    return JSON.parse(response.text.trim());
+  }
+
+  throw new Error(aiConfig.error || "AI provider is not configured.");
+}
+
+async function generateSpeech(text: string) {
+  if (aiConfig.provider === "openai" && openAI) {
+    const response = await withTimeout(openAI.audio.speech.create({
+      model: aiConfig.ttsModel,
+      voice: aiConfig.ttsVoice as any,
+      input: text,
+      response_format: "mp3",
+    }), REQUEST_TIMEOUT_MS, "OpenAI TTS request");
+
+    const audioBuffer = Buffer.from(await response.arrayBuffer());
+    return { audio: audioBuffer.toString("base64"), mimeType: "audio/mpeg" };
+  }
+
+  if (aiConfig.provider === "gemini" && geminiAI) {
+    const response = await withTimeout(geminiAI.models.generateContent({
+      model: "gemini-3.1-flash-tts-preview",
+      contents: [{ parts: [{ text }] }],
+      config: {
+        responseModalities: [Modality.AUDIO],
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: { voiceName: "Aoede" },
+          },
+        },
+      },
+    }), REQUEST_TIMEOUT_MS, "Gemini TTS request");
+
+    const inlineData = response?.candidates?.[0]?.content?.parts?.[0]?.inlineData;
+    if (!inlineData?.data) throw new Error("No audio generated");
+
+    let audioData = inlineData.data;
+    let outMimeType = inlineData.mimeType || "audio/pcm;rate=24000";
+
+    if (outMimeType.startsWith("audio/pcm") || outMimeType.startsWith("audio/l16")) {
+      let rate = 24000;
+      const rateMatch = outMimeType.match(/rate=(\d+)/);
+      if (rateMatch?.[1]) {
+        rate = parseInt(rateMatch[1], 10);
+      }
+      audioData = pcmBase64ToWavBase64(audioData, rate);
+      outMimeType = "audio/wav";
+    }
+
+    return { audio: audioData, mimeType: outMimeType };
+  }
+
+  throw new Error(aiConfig.error || "AI provider is not configured.");
 }
 
 function hasFirebaseAdminConfig() {
@@ -152,8 +345,8 @@ app.post("/api/billing/checkout", async (_req, res) => {
 
 app.post("/api/chat", async (req, res) => {
   try {
-    if (!geminiApiKey) {
-      return res.status(500).json({ error: "GEMINI_API_KEY is not configured on the server." });
+    if (aiConfig.error) {
+      return res.status(500).json({ error: aiConfig.error });
     }
 
     const { messages } = req.body;
@@ -168,76 +361,44 @@ app.post("/api/chat", async (req, res) => {
       return res.status(402).json({ error: "quota_exceeded", billing });
     }
 
-    const contents = messages.map((msg) => ({
-      role: msg.role,
-      parts: [{ text: msg.text }],
-    }));
-
-    let response;
+    let parsed;
     let retries = 3;
     while (retries > 0) {
       try {
-        response = await withTimeout(ai.models.generateContent({
-          model: "gemini-3.5-flash",
-          contents,
-          config: {
-            systemInstruction: HINA_SYSTEM_INSTRUCTION,
-            responseMimeType: "application/json",
-            responseSchema: {
-              type: Type.OBJECT,
-              properties: {
-                response: {
-                  type: Type.STRING,
-                  description: "Your friendly conversational response to the user's message. Read their prompt carefully and reply.",
-                },
-                correction: {
-                  type: Type.STRING,
-                  description: "If there were any grammar or spelling errors in the user's message, gently correct them here (start with e.g., 'By the way... ✨'). If no errors, leave empty or omit.",
-                },
-                insight: {
-                  type: Type.STRING,
-                  description: "A short, fun tip about an idiom or vocabulary word used in the conversation. e.g. '💡 Quick Tip: ...'. If none, leave empty.",
-                },
-              },
-              required: ["response"],
-            },
-          },
-        }), GEMINI_REQUEST_TIMEOUT_MS, "Gemini chat request");
+        parsed = await generateChatResponse(messages);
         break;
       } catch (err: any) {
-        if (err instanceof OperationTimeoutError) {
+        if (isOperationTimeoutError(err)) {
           return res.status(503).json({ error: "The AI response timed out. Please try again in a moment.", code: 503 });
         }
-        if (err.status === "UNAVAILABLE" || err.status === "RESOURCE_EXHAUSTED" || err.message?.includes("503") || err.message?.includes("429") || err.message?.includes("Quota exceeded")) {
+        if (isQuotaExhaustedError(err)) {
+          return res.status(429).json({
+            error: `${aiConfig.provider === "openai" ? "The OpenAI" : "The Gemini"} API key has no remaining quota. Please update the server API key or billing settings.`,
+            code: 429,
+          });
+        }
+        if (isRetryableAIError(err)) {
           retries -= 1;
           if (retries === 0) {
             return res.status(503).json({ error: "The AI is currently experiencing high demand. Please try again later.", code: 503 });
           }
-          let delay = (4 - retries) * 1000;
-          let externalDelayMatch = null;
-          if (err.message) {
-            externalDelayMatch = err.message.match(/retry in ([\d.]+)s/);
+          const fallbackDelay = (4 - retries) * 1000;
+          const { delayMs, requestedSeconds } = getExternalRetryDelayMs(err, fallbackDelay);
+          if (requestedSeconds && requestedSeconds > 5) {
+            return res.status(429).json({ error: `The AI is temporarily out of breath. Let's wait about ${Math.ceil(requestedSeconds)} seconds and try again!`, code: 429 });
           }
-          if (externalDelayMatch?.[1]) {
-            const seconds = parseFloat(externalDelayMatch[1]);
-            if (seconds > 5) {
-              return res.status(429).json({ error: `The AI is temporarily out of breath. Let's wait about ${Math.ceil(seconds)} seconds and try again!`, code: 429 });
-            }
-            delay = Math.ceil(seconds) * 1000 + 500;
-          }
-          console.log(`Rate limited or unavailable on Chat. Retrying in ${delay}ms... (${retries} retries left)`);
-          await new Promise((resolve) => setTimeout(resolve, delay));
+          console.log(`Rate limited or unavailable on Chat. Retrying in ${delayMs}ms... (${retries} retries left)`);
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
         } else {
           throw err;
         }
       }
     }
 
-    if (!response?.text) {
+    if (!parsed?.response) {
       throw new Error("No text from model");
     }
 
-    const parsed = JSON.parse(response.text.trim());
     const nextBilling = await billingStore.incrementChatUsage(billingSubject);
     res.json({ ...parsed, billing: nextBilling });
   } catch (error: any) {
@@ -248,8 +409,8 @@ app.post("/api/chat", async (req, res) => {
 
 app.post("/api/tts", async (req, res) => {
   try {
-    if (!geminiApiKey) {
-      return res.status(500).json({ error: "GEMINI_API_KEY is not configured on the server." });
+    if (aiConfig.error) {
+      return res.status(500).json({ error: aiConfig.error });
     }
 
     const { text } = req.body;
@@ -257,71 +418,44 @@ app.post("/api/tts", async (req, res) => {
       return res.status(400).json({ error: "Missing text" });
     }
 
-    let response;
+    let speech;
     let retries = 3;
     while (retries > 0) {
       try {
-        response = await withTimeout(ai.models.generateContent({
-          model: "gemini-3.1-flash-tts-preview",
-          contents: [{ parts: [{ text }] }],
-          config: {
-            responseModalities: [Modality.AUDIO],
-            speechConfig: {
-              voiceConfig: {
-                prebuiltVoiceConfig: { voiceName: "Aoede" },
-              },
-            },
-          },
-        }), GEMINI_REQUEST_TIMEOUT_MS, "Gemini TTS request");
+        speech = await generateSpeech(text);
         break;
       } catch (err: any) {
-        if (err instanceof OperationTimeoutError) {
+        if (isOperationTimeoutError(err)) {
           return res.status(503).json({ error: "Voice generation timed out. Please try again in a moment.", code: 503 });
         }
-        if (err.status === "RESOURCE_EXHAUSTED" || err.message?.includes("429") || err.message?.includes("Quota exceeded")) {
+        if (isQuotaExhaustedError(err)) {
+          return res.status(429).json({
+            error: `${aiConfig.provider === "openai" ? "The OpenAI" : "The Gemini"} API key has no remaining quota for voice generation.`,
+            code: 429,
+          });
+        }
+        if (isRetryableAIError(err)) {
           retries -= 1;
           if (retries === 0) {
             return res.status(429).json({ error: "Voice generation is temporarily rate-limited. Please try again later.", code: 429 });
           }
-          let delay = 2000;
-          let externalDelayMatch = null;
-          if (err.message) {
-            externalDelayMatch = err.message.match(/retry in ([\d.]+)s/);
+          const { delayMs, requestedSeconds } = getExternalRetryDelayMs(err, 2000);
+          if (requestedSeconds && requestedSeconds > 5) {
+            return res.status(429).json({ error: `Voice generation is taking a short breather. Please try again in ${Math.ceil(requestedSeconds)}s.`, code: 429 });
           }
-          if (externalDelayMatch?.[1]) {
-            const seconds = parseFloat(externalDelayMatch[1]);
-            if (seconds > 5) {
-              return res.status(429).json({ error: `Voice generation is taking a short breather. Please try again in ${Math.ceil(seconds)}s.`, code: 429 });
-            }
-            delay = Math.ceil(seconds) * 1000 + 500;
-          }
-          console.log(`Rate limited on TTS. Retrying in ${delay}ms... (${retries} retries left)`);
-          await new Promise((resolve) => setTimeout(resolve, delay));
+          console.log(`Rate limited on TTS. Retrying in ${delayMs}ms... (${retries} retries left)`);
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
         } else {
           throw err;
         }
       }
     }
 
-    const inlineData = response?.candidates?.[0]?.content?.parts?.[0]?.inlineData;
-    if (!inlineData?.data) {
+    if (!speech?.audio) {
       throw new Error("No audio generated");
     }
 
-    let audioData = inlineData.data;
-    let outMimeType = inlineData.mimeType || "audio/pcm;rate=24000";
-
-    if (outMimeType.startsWith("audio/pcm") || outMimeType.startsWith("audio/l16")) {
-      let rate = 24000;
-      const rateMatch = outMimeType.match(/rate=(\d+)/);
-      if (rateMatch?.[1]) {
-        rate = parseInt(rateMatch[1], 10);
-      }
-      audioData = pcmBase64ToWavBase64(audioData, rate);
-      outMimeType = "audio/wav";
-    }
-
-    res.json({ audio: audioData, mimeType: outMimeType });
+    res.json(speech);
   } catch (error: any) {
     console.error("TTS Error:", error);
     res.status(500).json({ error: "Failed to generate TTS" });

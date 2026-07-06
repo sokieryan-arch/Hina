@@ -5,6 +5,13 @@ export class OperationTimeoutError extends Error {
   }
 }
 
+export function isOperationTimeoutError(error: unknown): error is OperationTimeoutError {
+  return error instanceof OperationTimeoutError
+    || (Boolean(error)
+      && typeof error === "object"
+      && (error as { name?: unknown }).name === "OperationTimeoutError");
+}
+
 export async function withTimeout<T>(operation: Promise<T>, ms: number, label: string): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
