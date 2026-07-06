@@ -2,9 +2,11 @@ import express from "express";
 import path from "path";
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { canUseChat, createBillingStoreFromEnv } from "./src/server/billing.js";
+import { readGeminiApiKey } from "./src/server/geminiConfig.js";
 
+const geminiApiKey = readGeminiApiKey();
 const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
+  apiKey: geminiApiKey || undefined,
   httpOptions: {
     headers: {
       "User-Agent": "aistudio-build",
@@ -147,6 +149,10 @@ app.post("/api/billing/checkout", async (_req, res) => {
 
 app.post("/api/chat", async (req, res) => {
   try {
+    if (!geminiApiKey) {
+      return res.status(500).json({ error: "GEMINI_API_KEY is not configured on the server." });
+    }
+
     const { messages } = req.body;
 
     if (!messages || !Array.isArray(messages)) {
@@ -236,6 +242,10 @@ app.post("/api/chat", async (req, res) => {
 
 app.post("/api/tts", async (req, res) => {
   try {
+    if (!geminiApiKey) {
+      return res.status(500).json({ error: "GEMINI_API_KEY is not configured on the server." });
+    }
+
     const { text } = req.body;
     if (!text) {
       return res.status(400).json({ error: "Missing text" });
