@@ -3,11 +3,14 @@ import path from "path";
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { canUseChat, createBillingStoreFromEnv } from "./src/server/billing.js";
 import { readGeminiApiKey } from "./src/server/geminiConfig.js";
+import { OperationTimeoutError, withTimeout } from "./src/server/timeout.js";
 
 const geminiApiKey = readGeminiApiKey();
+const GEMINI_REQUEST_TIMEOUT_MS = Number.parseInt(process.env.GEMINI_REQUEST_TIMEOUT_MS || "20000", 10);
 const ai = new GoogleGenAI({
   apiKey: geminiApiKey || undefined,
   httpOptions: {
+    timeout: GEMINI_REQUEST_TIMEOUT_MS,
     headers: {
       "User-Agent": "aistudio-build",
     },
@@ -174,7 +177,7 @@ app.post("/api/chat", async (req, res) => {
     let retries = 3;
     while (retries > 0) {
       try {
-        response = await ai.models.generateContent({
+        response = await withTimeout(ai.models.generateContent({
           model: "gemini-3.5-flash",
           contents,
           config: {
@@ -199,9 +202,12 @@ app.post("/api/chat", async (req, res) => {
               required: ["response"],
             },
           },
-        });
+        }), GEMINI_REQUEST_TIMEOUT_MS, "Gemini chat request");
         break;
       } catch (err: any) {
+        if (err instanceof OperationTimeoutError) {
+          return res.status(503).json({ error: "The AI response timed out. Please try again in a moment.", code: 503 });
+        }
         if (err.status === "UNAVAILABLE" || err.status === "RESOURCE_EXHAUSTED" || err.message?.includes("503") || err.message?.includes("429") || err.message?.includes("Quota exceeded")) {
           retries -= 1;
           if (retries === 0) {
@@ -255,7 +261,7 @@ app.post("/api/tts", async (req, res) => {
     let retries = 3;
     while (retries > 0) {
       try {
-        response = await ai.models.generateContent({
+        response = await withTimeout(ai.models.generateContent({
           model: "gemini-3.1-flash-tts-preview",
           contents: [{ parts: [{ text }] }],
           config: {
@@ -266,9 +272,12 @@ app.post("/api/tts", async (req, res) => {
               },
             },
           },
-        });
+        }), GEMINI_REQUEST_TIMEOUT_MS, "Gemini TTS request");
         break;
       } catch (err: any) {
+        if (err instanceof OperationTimeoutError) {
+          return res.status(503).json({ error: "Voice generation timed out. Please try again in a moment.", code: 503 });
+        }
         if (err.status === "RESOURCE_EXHAUSTED" || err.message?.includes("429") || err.message?.includes("Quota exceeded")) {
           retries -= 1;
           if (retries === 0) {
