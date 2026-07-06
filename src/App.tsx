@@ -8,16 +8,30 @@ import { nanoid } from "nanoid";
 import { BillingSummary, Message, ProactiveSettings, UserProfile } from "./types";
 import { ChatMessage } from "./components/ChatMessage";
 import { SettingsModal } from "./components/SettingsModal";
-import { Send, Moon, Sun, LogIn, LogOut, Settings } from "lucide-react";
+import { AuthPanel } from "./components/AuthPanel";
+import { Send, Moon, Sun, LogOut, Settings } from "lucide-react";
 import {
   auth,
   db,
   handleFirestoreError,
   loadRemoteProactiveSettings,
   loadUserProfile,
+  saveUserProfile,
   saveRemoteProactiveSettings,
 } from "./firebase";
-import { signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, onAuthStateChanged, User, signOut } from "firebase/auth";
+import {
+  createUserWithEmailAndPassword,
+  getRedirectResult,
+  GoogleAuthProvider,
+  onAuthStateChanged,
+  sendPasswordResetEmail,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  signInWithRedirect,
+  signOut,
+  updateProfile,
+  User,
+} from "firebase/auth";
 import { collection, query, orderBy, onSnapshot, setDoc, doc, serverTimestamp } from "firebase/firestore";
 import { motion } from "motion/react";
 import { formatAuthErrorMessage, isPopupFallbackError } from "./authErrorMessage";
@@ -120,7 +134,6 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [proactiveSettings, setProactiveSettings] = useState<ProactiveSettings>(() => loadProactiveSettings());
   const [authFeedback, setAuthFeedback] = useState<string | null>(null);
-  const [isLoginPending, setIsLoginPending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const userId = user?.uid;
@@ -129,7 +142,6 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       if (currentUser) setAuthFeedback(null);
-      setIsLoginPending(false);
       setIsAuthReady(true);
     });
     return () => unsubscribe();
@@ -142,14 +154,12 @@ export default function App() {
         if (cancelled) return;
         if (result?.user) {
           setAuthFeedback(null);
-          setIsLoginPending(false);
         }
       })
       .catch((error) => {
         if (cancelled) return;
         console.error("Redirect login failed:", error);
         setAuthFeedback(formatAuthErrorMessage(error));
-        setIsLoginPending(false);
       });
     return () => {
       cancelled = true;
@@ -345,19 +355,17 @@ export default function App() {
     return () => window.clearTimeout(timeout);
   }, [handleProactiveTrigger, isAuthReady, isTyping, messages, proactiveSettings, user?.uid]);
 
-  const handleLogin = async () => {
+  const handleGoogleLogin = async () => {
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: "select_account" });
     setAuthFeedback(null);
-    setIsLoginPending(true);
     try {
       await signInWithPopup(auth, provider);
       setAuthFeedback(null);
-      setIsLoginPending(false);
     } catch (error) {
       console.error("Login failed:", error);
       if (isPopupFallbackError(error)) {
-        setAuthFeedback("The sign-in popup was blocked. Redirecting to Google sign-in...");
+        setAuthFeedback("登录弹窗被拦截，正在切换到 Google 跳转登录...");
         try {
           await signInWithRedirect(auth, provider);
           return;
@@ -368,8 +376,29 @@ export default function App() {
       } else {
         setAuthFeedback(formatAuthErrorMessage(error));
       }
-      setIsLoginPending(false);
     }
+  };
+
+  const handleEmailLogin = async ({ email, password }: { email: string; password: string }) => {
+    setAuthFeedback(null);
+    await signInWithEmailAndPassword(auth, email, password);
+  };
+
+  const handleEmailRegister = async ({ email, password, displayName }: { email: string; password: string; displayName: string }) => {
+    setAuthFeedback(null);
+    const credential = await createUserWithEmailAndPassword(auth, email, password);
+    const profile = {
+      displayName,
+      photoURL: credential.user.photoURL || null,
+    };
+    await updateProfile(credential.user, profile);
+    setUserProfile(profile);
+    await saveUserProfile(credential.user.uid, profile);
+  };
+
+  const handlePasswordReset = async ({ email }: { email: string }) => {
+    setAuthFeedback(null);
+    await sendPasswordResetEmail(auth, email);
   };
 
   const handleLogout = async () => {
@@ -532,6 +561,31 @@ export default function App() {
 
   const HinaHeaderIcon = theme === "dark" ? Moon : Sun;
 
+  if (!isAuthReady) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#FDFBF7] px-6 text-[#4A4A4A]">
+        <div className="text-center">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#FFD166] text-white shadow-sm">
+            <Sun size={28} strokeWidth={2.5} />
+          </div>
+          <p className="text-sm font-bold text-[#8A817C]">Hina 正在准备登录状态...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <AuthPanel
+        onGoogleLogin={handleGoogleLogin}
+        onEmailLogin={handleEmailLogin}
+        onEmailRegister={handleEmailRegister}
+        onPasswordReset={handlePasswordReset}
+        feedback={authFeedback}
+      />
+    );
+  }
+
   return (
     <div className={`flex flex-col h-screen font-sans transition-colors duration-300 ${theme} bg-[#FDFBF7] dark:bg-[#1c1224] text-[#4A4A4A] dark:text-[#e5dceb] selection:bg-[#FFD166]/30 dark:selection:bg-[#660874]/50`}>
       <header className="flex-none border-b border-[#E8E2D6] dark:border-[#3a2347] px-4 py-3 sm:px-8 flex items-center justify-between bg-white/50 dark:bg-[#1c1224]/80 backdrop-blur-sm z-10 sticky top-0 shadow-[0_1px_2px_-1px_rgba(0,0,0,0.05)] dark:shadow-none transition-colors duration-300">
@@ -553,26 +607,13 @@ export default function App() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {user ? (
-            <button
-              onClick={handleLogout}
-              className="p-2 text-[#8A817C] dark:text-[#a58ebd] hover:bg-[#F7F2E9] dark:hover:bg-[#342042] rounded-full transition-colors flex items-center justify-center font-bold"
-              title="Logout"
-            >
-              <LogOut size={20} />
-            </button>
-          ) : (
-            <button
-              onClick={handleLogin}
-              disabled={isLoginPending}
-              className="p-2 text-[#8A817C] dark:text-[#a58ebd] hover:bg-[#F7F2E9] dark:hover:bg-[#342042] rounded-full transition-colors flex items-center justify-center font-bold disabled:opacity-50 disabled:cursor-wait"
-              title={isLoginPending ? "Opening Google sign-in" : "Login with Google"}
-              aria-label={isLoginPending ? "Opening Google sign-in" : "Login with Google"}
-              aria-busy={isLoginPending}
-            >
-              <LogIn size={20} />
-            </button>
-          )}
+          <button
+            onClick={handleLogout}
+            className="p-2 text-[#8A817C] dark:text-[#a58ebd] hover:bg-[#F7F2E9] dark:hover:bg-[#342042] rounded-full transition-colors flex items-center justify-center font-bold"
+            title="Logout"
+          >
+            <LogOut size={20} />
+          </button>
           <button
             onClick={() => setTheme(theme === "light" ? "dark" : "light")}
             className="p-2 text-[#8A817C] dark:text-[#a58ebd] hover:bg-[#F7F2E9] dark:hover:bg-[#342042] rounded-full transition-colors"
@@ -589,12 +630,6 @@ export default function App() {
           </button>
         </div>
       </header>
-
-      {authFeedback && !user && (
-        <div className="flex-none border-b border-[#E8E2D6] dark:border-[#3a2347] bg-[#FFF7E6] dark:bg-[#2d1b39] px-4 py-2 text-sm text-[#7A4B00] dark:text-[#f0c987]">
-          <div className="mx-auto max-w-3xl">{authFeedback}</div>
-        </div>
-      )}
 
       <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-6">
         <div className="max-w-3xl mx-auto flex flex-col justify-end min-h-full">

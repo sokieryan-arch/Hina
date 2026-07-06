@@ -26,6 +26,7 @@ View your app in AI Studio: https://ai.studio/apps/f545bc87-5883-43c8-b172-c964c
 
 ## Production Notes
 
+- Enable Firebase Authentication providers for Email/Password and Google. Add every deployed or preview host, including local `localhost`, to Firebase Authentication's authorized domains.
 - Deploy both `firestore.rules` and `storage.rules`. Avatar uploads use Firebase Storage under `avatars/{uid}/...` and are limited to JPG, PNG, WebP, or GIF files up to 10MB.
 - Proactive settings are saved at `/users/{uid}/settings/proactive`, with browser localStorage retained as a fallback and migration source.
 - Free/Pro usage is enforced server-side before Gemini calls. Set `FREE_DAILY_CHAT_LIMIT` and `PRO_DAILY_CHAT_LIMIT`; `PRO_DAILY_CHAT_LIMIT=0` means unlimited.

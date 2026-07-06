@@ -22,22 +22,30 @@ export function isPopupFallbackError(error: unknown): boolean {
 export function formatAuthErrorMessage(error: unknown): string {
   switch (getAuthErrorCode(error)) {
     case "auth/unauthorized-domain":
-      return "This preview domain is not authorized in Firebase. Open the preview with http://localhost or add this domain in Firebase Authentication.";
+      return "当前预览域名没有加入 Firebase 授权域名。请使用 http://localhost 打开，或在 Firebase Authentication 里添加这个域名。";
     case "auth/operation-not-allowed":
-      return "Google sign-in is not enabled for this Firebase project yet.";
+      return "这个 Firebase 项目还没有开启对应的登录方式。";
     case "auth/popup-blocked":
-      return "Your browser blocked the Google sign-in popup.";
+      return "浏览器拦截了 Google 登录弹窗。";
     case "auth/popup-closed-by-user":
-      return "The Google sign-in window was closed before login finished.";
+      return "Google 登录窗口已关闭，登录还没有完成。";
     case "auth/network-request-failed":
-      return "Google sign-in could not reach Firebase. Please check the network and try again.";
+      return "暂时连不上 Firebase，请检查网络后再试。";
     case "auth/web-storage-unsupported":
-      return "This browser blocks the storage Google sign-in needs. Try opening Hina in Chrome, Edge, or Safari.";
+      return "当前浏览器阻止了登录所需的本地存储。请尝试用 Chrome、Edge 或 Safari 打开。";
+    case "auth/email-already-in-use":
+      return "这个邮箱已经注册过了。";
+    case "auth/invalid-email":
+      return "请输入正确的邮箱地址。";
+    case "auth/invalid-credential":
+    case "auth/user-not-found":
+    case "auth/wrong-password":
+      return "邮箱或密码不正确。";
+    case "auth/weak-password":
+      return "密码至少需要 8 位。";
+    case "auth/too-many-requests":
+      return "尝试次数太多了，请稍后再试。";
     default:
-      if (error && typeof error === "object") {
-        const message = (error as AuthErrorLike).message;
-        if (typeof message === "string" && message.trim()) return message;
-      }
-      return "Google sign-in failed. Please try again.";
+      return "登录请求没有成功，请稍后再试。";
   }
 }
