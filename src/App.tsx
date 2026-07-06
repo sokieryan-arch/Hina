@@ -9,6 +9,7 @@ import { BillingSummary, Message, ProactiveSettings, UserProfile } from "./types
 import { ChatMessage } from "./components/ChatMessage";
 import { SettingsModal } from "./components/SettingsModal";
 import { AuthPanel } from "./components/AuthPanel";
+import { getPublicPage, PublicPage } from "./publicPages";
 import { Send, Moon, Sun, LogOut, Settings } from "lucide-react";
 import {
   auth,
@@ -560,6 +561,11 @@ export default function App() {
   };
 
   const HinaHeaderIcon = theme === "dark" ? Moon : Sun;
+  const publicPage = typeof window !== "undefined" ? getPublicPage(window.location.pathname) : null;
+
+  if (publicPage) {
+    return <PublicPage page={publicPage} />;
+  }
 
   if (!isAuthReady) {
     return (

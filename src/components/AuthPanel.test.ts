@@ -26,6 +26,20 @@ test("auth panel renders English account entry with Google instead of WeChat", (
   assert.doesNotMatch(markup, /WeChat/);
 });
 
+test("auth panel exposes public pricing and policy links", () => {
+  const markup = renderToStaticMarkup(React.createElement(AuthPanel, {
+    onGoogleLogin: noop,
+    onEmailLogin: noop,
+    onEmailRegister: noop,
+    onPasswordReset: noop,
+  }));
+
+  assert.match(markup, /href="\/pricing"/);
+  assert.match(markup, /href="\/terms"/);
+  assert.match(markup, /href="\/privacy"/);
+  assert.match(markup, /href="\/refunds"/);
+});
+
 test("validateAuthForm protects email, password, and display name requirements", () => {
   assert.equal(validateAuthForm("login", { email: "bad", password: "12345678" }), "Please enter a valid email address.");
   assert.equal(validateAuthForm("login", { email: "hina@example.com", password: "" }), "Please enter your password.");

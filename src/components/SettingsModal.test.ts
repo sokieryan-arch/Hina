@@ -59,14 +59,14 @@ test("settings modal renders profile upload controls and Pro usage", () => {
   assert.match(markup, /Upgrade/);
 });
 
-test("settings modal keeps coffee QR codes tucked behind payment choices", () => {
+test("settings modal shows international support status without mainland QR methods", () => {
   const markup = renderSettings();
 
-  assert.match(markup, /Buy Hina a cup of coffee/);
-  assert.match(markup, /server hosting and maintenance/);
-  assert.match(markup, /Choose WeChat or Alipay to reveal a QR code/);
-  assert.match(markup, /WeChat/);
-  assert.match(markup, /Alipay/);
+  assert.match(markup, /Support Hina/);
+  assert.match(markup, /International payments are being prepared with Paddle/);
+  assert.match(markup, /View pricing/);
+  assert.doesNotMatch(markup, /WeChat/);
+  assert.doesNotMatch(markup, /Alipay/);
   assert.doesNotMatch(markup, /\/support\/wechat-coffee\.png/);
   assert.doesNotMatch(markup, /\/support\/alipay-coffee\.jpg/);
 });

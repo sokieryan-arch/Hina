@@ -3,6 +3,7 @@ import { ArrowRight, Eye, EyeOff, KeyRound, Mail, Sun, UserRound } from "lucide-
 import { motion } from "motion/react";
 import { cn } from "../lib/utils";
 import { formatAuthErrorMessage } from "../authErrorMessage";
+import { PUBLIC_PAGE_LINKS } from "../publicPages";
 
 export type AuthMode = "login" | "register" | "reset";
 
@@ -308,6 +309,13 @@ export function AuthPanel({
 
           </section>
         </motion.div>
+        <footer className="relative mx-auto mt-6 flex max-w-6xl flex-wrap items-center justify-center gap-4 text-xs font-bold text-[#8A817C] sm:justify-start">
+          {PUBLIC_PAGE_LINKS.map((link) => (
+            <a key={link.href} href={link.href} className="hover:text-[#292521]">
+              {link.label}
+            </a>
+          ))}
+        </footer>
       </div>
     </main>
   );
