@@ -14,7 +14,7 @@ export interface PublicPageData {
   }>;
 }
 
-export const SUPPORT_EMAIL = "support@hina-gules.vercel.app";
+export const SUPPORT_EMAIL = "sokieryan@gmail.com";
 export const PRO_PRICE = "US$4.99";
 export const PRO_INTERVAL = "month";
 export const LAST_UPDATED = "July 7, 2026";

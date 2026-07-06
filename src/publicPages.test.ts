@@ -31,7 +31,7 @@ test("terms, privacy, and refund pages include support contact and required topi
     assert.ok(page);
     const markup = renderToStaticMarkup(React.createElement(PublicPage, { page }));
 
-    assert.match(markup, /support@hina-gules\.vercel\.app/);
+    assert.match(markup, /sokieryan@gmail\.com/);
     assert.match(markup, /Hina/);
   }
 

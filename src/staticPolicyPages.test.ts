@@ -13,7 +13,7 @@ test("static Paddle verification pages include crawlable policy content", () => 
   assert.match(pricing, /Hina Pro/);
   assert.match(pricing, /US\$4\.99/);
   assert.match(terms, /Terms of Service/);
-  assert.match(terms, /support@hina-gules\.vercel\.app/);
+  assert.match(terms, /sokieryan@gmail\.com/);
   assert.match(privacy, /Privacy Policy/);
   assert.match(privacy, /Firebase/);
   assert.match(refunds, /Refund Policy/);
