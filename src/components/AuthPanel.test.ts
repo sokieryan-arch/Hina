@@ -19,7 +19,8 @@ test("auth panel renders English account entry with Google instead of WeChat", (
   assert.match(markup, /Forgot password/);
   assert.match(markup, /Email/);
   assert.match(markup, /Continue with Google/);
-  assert.match(markup, /Made for mobile/);
+  assert.doesNotMatch(markup, /Made for mobile/);
+  assert.doesNotMatch(markup, /international edition keeps Firebase Auth/i);
   assert.doesNotMatch(markup, /登录|注册|忘记密码|邮箱|适合手机/);
   assert.doesNotMatch(markup, /微信/);
   assert.doesNotMatch(markup, /WeChat/);

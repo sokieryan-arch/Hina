@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, CheckCircle2, Eye, EyeOff, KeyRound, Mail, Sparkles, Sun, UserRound } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, KeyRound, Mail, Sun, UserRound } from "lucide-react";
 import { motion } from "motion/react";
 import { cn } from "../lib/utils";
 import { formatAuthErrorMessage } from "../authErrorMessage";
@@ -159,10 +159,6 @@ export function AuthPanel({
             </div>
 
             <div className="mt-10 max-w-[620px] space-y-6">
-              <div className="inline-flex items-center gap-2 rounded-full border border-[#E8E2D6] bg-white/70 px-4 py-2 text-xs font-black text-[#7A6544] shadow-sm backdrop-blur">
-                <Sparkles size={15} />
-                Made for mobile
-              </div>
               <p className="text-[2.65rem] font-black leading-[0.98] tracking-normal text-[#292521] sm:text-[4.2rem]">
                 Settle in first. Then start today&apos;s English chat.
               </p>
@@ -310,10 +306,6 @@ export function AuthPanel({
               </div>
             </div>
 
-            <div className="mt-6 flex items-start gap-2 rounded-2xl bg-[#F1F7F5] px-4 py-3 text-xs font-bold leading-5 text-[#3D695E]">
-              <CheckCircle2 size={16} className="mt-0.5 shrink-0" />
-              The international edition keeps Firebase Auth, with Google as the third-party sign-in option.
-            </div>
           </section>
         </motion.div>
       </div>
