@@ -65,6 +65,7 @@ test("settings modal shows international support status without mainland QR meth
   assert.match(markup, /Support Hina/);
   assert.match(markup, /Hina Pro is US\$4\.99\/month/);
   assert.match(markup, /Taxes may apply and will be calculated at checkout/);
+  assert.match(markup, /Upgrade/);
   assert.match(markup, /View pricing/);
   assert.doesNotMatch(markup, /WeChat/);
   assert.doesNotMatch(markup, /Alipay/);

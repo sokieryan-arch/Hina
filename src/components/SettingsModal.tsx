@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { nanoid } from "nanoid";
 import { db, saveUserProfile, storage } from "../firebase";
+import { openHinaProCheckout } from "../paddleCheckout";
 import type { BillingSummary, ProactiveSettings, UserProfile } from "../types";
 import { avatarExtension, validateAvatarFile } from "./avatarValidation";
 
@@ -159,24 +160,15 @@ export function SettingsModal({
     setBillingBusy(true);
     setBillingMessage(null);
     try {
-      const response = await fetch("/api/billing/checkout", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${await user.getIdToken()}`,
-        },
+      await openHinaProCheckout(user, () => {
+        setBillingMessage("Payment received. Hina Pro will unlock as soon as Paddle confirms it.");
       });
-      const data = await response.json().catch(() => ({}));
-      if (data.billing) onBillingChange(data.billing);
-      if (data.url) {
-        window.location.href = data.url;
-        return;
-      }
-      if (!response.ok && data.error !== "billing_not_ready") {
-        throw new Error(data.error || "billing_checkout_failed");
-      }
-      setBillingMessage("Upgrade is almost ready. Hina saved your spot on the tiny VIP list.");
-    } catch {
-      setBillingMessage("Upgrade could not start right now. Please try again later.");
+      setBillingMessage("Paddle checkout opened. Finish payment there to unlock Hina Pro.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      setBillingMessage(message.includes("VITE_PADDLE_CLIENT_TOKEN")
+        ? "Paddle checkout is not configured yet. Add the client-side token in Vercel first."
+        : "Upgrade could not start right now. Please try again later.");
     } finally {
       setBillingBusy(false);
     }

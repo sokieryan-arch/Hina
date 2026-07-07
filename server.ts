@@ -4,6 +4,7 @@ import { GoogleGenAI, Type, Modality } from "@google/genai";
 import OpenAI from "openai";
 import { canUseChat, createBillingStoreFromEnv } from "./src/server/billing.js";
 import { buildOpenAIChatMessages, readAIConfig, type HinaHistoryMessage } from "./src/server/aiConfig.js";
+import { extractPaddleBillingUpdate, readPaddleServerConfig, verifyPaddleWebhookSignature } from "./src/server/paddle.js";
 import { isOperationTimeoutError, withTimeout } from "./src/server/timeout.js";
 
 const aiConfig = readAIConfig();
@@ -27,6 +28,7 @@ const openAI = aiConfig.provider === "openai"
   : null;
 
 const billingStore = createBillingStoreFromEnv();
+const paddleConfig = readPaddleServerConfig();
 
 const HINA_SYSTEM_INSTRUCTION = `
 You are Hina, my English learning partner. 
@@ -327,6 +329,31 @@ async function getBillingSubject(req: express.Request) {
 }
 
 const app = express();
+
+app.post("/api/paddle/webhook", express.raw({ type: "application/json", limit: "1mb" }), async (req, res) => {
+  try {
+    const signatureHeader = Array.isArray(req.headers["paddle-signature"])
+      ? req.headers["paddle-signature"][0]
+      : req.headers["paddle-signature"];
+    const rawBody = Buffer.isBuffer(req.body) ? req.body : Buffer.from("");
+
+    if (!verifyPaddleWebhookSignature(rawBody, signatureHeader, paddleConfig.webhookSecret)) {
+      return res.status(401).json({ error: "invalid_paddle_signature" });
+    }
+
+    const event = JSON.parse(rawBody.toString("utf8"));
+    const update = extractPaddleBillingUpdate(event, paddleConfig.priceId);
+    if (update) {
+      await billingStore.setPlan?.(update.subjectId, update.plan);
+    }
+
+    res.json({ ok: true, applied: Boolean(update) });
+  } catch (error) {
+    console.error("Paddle Webhook Error:", error);
+    res.status(500).json({ error: "paddle_webhook_failed" });
+  }
+});
+
 app.use(express.json({ limit: "5mb" }));
 
 app.get("/api/billing/me", async (req, res) => {
@@ -339,8 +366,19 @@ app.get("/api/billing/me", async (req, res) => {
   }
 });
 
-app.post("/api/billing/checkout", async (_req, res) => {
-  res.status(503).json({ error: "billing_not_ready" });
+app.post("/api/billing/checkout", async (req, res) => {
+  try {
+    const subject = await getBillingSubject(req);
+    res.json({
+      provider: "paddle",
+      priceId: paddleConfig.priceId,
+      subject,
+      mode: "client_checkout",
+    });
+  } catch (error) {
+    console.error("Billing Checkout Error:", error);
+    res.status(500).json({ error: "billing_checkout_failed" });
+  }
 });
 
 app.post("/api/chat", async (req, res) => {

@@ -73,3 +73,17 @@ test("memory billing store increments usage and resets by UTC day", async () => 
   assert.equal(nextDay.usedToday, 0);
   assert.equal(nextDay.remainingToday, 2);
 });
+
+test("memory billing store can unlock and revoke Pro", async () => {
+  const store = createMemoryBillingStore({ freeDailyLimit: 2, proDailyLimit: null });
+
+  const pro = await store.setPlan!("uid:user-1", "pro");
+  assert.equal(pro.plan, "pro");
+  assert.equal(pro.isPro, true);
+  assert.equal(pro.dailyLimit, null);
+
+  const free = await store.setPlan!("uid:user-1", "free");
+  assert.equal(free.plan, "free");
+  assert.equal(free.isPro, false);
+  assert.equal(free.dailyLimit, 2);
+});
