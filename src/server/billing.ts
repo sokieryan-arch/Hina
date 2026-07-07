@@ -79,6 +79,30 @@ export function canUseChat(summary: BillingSummary): boolean {
   return summary.remainingToday === null || summary.remainingToday > 0;
 }
 
+export function buildBillingSubjectPlanDocument(
+  subjectId: string,
+  plan: BillingPlan,
+  updatedAt: unknown,
+  dailyLimitOverride?: number | null,
+) {
+  const document: {
+    subjectId: string;
+    plan: BillingPlan;
+    updatedAt: unknown;
+    dailyLimitOverride?: number | null;
+  } = {
+    subjectId,
+    plan,
+    updatedAt,
+  };
+
+  if (dailyLimitOverride !== undefined) {
+    document.dailyLimitOverride = dailyLimitOverride;
+  }
+
+  return document;
+}
+
 export function createMemoryBillingStore(limits: BillingLimits = readBillingLimits()): BillingStore {
   const plans = new Map<string, { plan: BillingPlan; dailyLimitOverride?: number | null }>();
   const usage = new Map<string, number>();
@@ -225,12 +249,10 @@ export function createFirebaseAdminBillingStore(
 
     async setPlan(subjectId, plan, dailyLimitOverride = undefined) {
       const { db, FieldValue } = await getFirestore();
-      await db.collection("billingSubjects").doc(billingDocId(subjectId)).set({
-        subjectId,
-        plan,
-        dailyLimitOverride,
-        updatedAt: FieldValue.serverTimestamp(),
-      }, { merge: true });
+      await db.collection("billingSubjects").doc(billingDocId(subjectId)).set(
+        buildBillingSubjectPlanDocument(subjectId, plan, FieldValue.serverTimestamp(), dailyLimitOverride),
+        { merge: true },
+      );
       return this.getBillingSummary(subjectId);
     },
   };

@@ -4,8 +4,10 @@ import { GoogleGenAI, Type, Modality } from "@google/genai";
 import OpenAI from "openai";
 import { canUseChat, createBillingStoreFromEnv } from "./src/server/billing.js";
 import { buildOpenAIChatMessages, readAIConfig, type HinaHistoryMessage } from "./src/server/aiConfig.js";
+import { verifyFirebaseIdTokenWithRest } from "./src/server/auth.js";
 import { extractPaddleBillingUpdate, readPaddleServerConfig, verifyPaddleWebhookSignature } from "./src/server/paddle.js";
 import { isOperationTimeoutError, withTimeout } from "./src/server/timeout.js";
+import firebaseClientConfig from "./firebase-applet-config.json";
 
 const aiConfig = readAIConfig();
 const REQUEST_TIMEOUT_MS = aiConfig.timeoutMs;
@@ -265,49 +267,10 @@ async function generateSpeech(text: string) {
   throw new Error(aiConfig.error || "AI provider is not configured.");
 }
 
-function hasFirebaseAdminConfig() {
-  return Boolean(
-    process.env.FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON
-    || (process.env.FIREBASE_ADMIN_CLIENT_EMAIL && process.env.FIREBASE_ADMIN_PRIVATE_KEY)
-    || process.env.GOOGLE_APPLICATION_CREDENTIALS,
-  );
-}
-
-function serviceAccountFromEnv() {
-  if (process.env.FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON) {
-    return JSON.parse(process.env.FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON);
-  }
-  if (process.env.FIREBASE_ADMIN_CLIENT_EMAIL && process.env.FIREBASE_ADMIN_PRIVATE_KEY) {
-    return {
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_ADMIN_PRIVATE_KEY.replace(/\\n/g, "\n"),
-    };
-  }
-  return null;
-}
-
-let adminAuthPromise: Promise<any> | null = null;
-
-async function getAdminAuth() {
-  if (!adminAuthPromise) {
-    adminAuthPromise = (async () => {
-      const appAdmin = await import("firebase-admin/app");
-      const authAdmin = await import("firebase-admin/auth");
-      const appName = "hina-auth";
-      const existing = appAdmin.getApps().find((app) => app.name === appName);
-      const serviceAccount = serviceAccountFromEnv();
-      const credential = serviceAccount
-        ? appAdmin.cert(serviceAccount)
-        : appAdmin.applicationDefault();
-      const app = existing ?? appAdmin.initializeApp({
-        credential,
-        projectId: process.env.FIREBASE_PROJECT_ID,
-      }, appName);
-      return authAdmin.getAuth(app);
-    })();
-  }
-  return adminAuthPromise;
+function getFirebaseWebApiKey() {
+  return process.env.FIREBASE_WEB_API_KEY
+    || process.env.VITE_FIREBASE_API_KEY
+    || firebaseClientConfig.apiKey;
 }
 
 async function getBillingSubject(req: express.Request) {
@@ -316,12 +279,12 @@ async function getBillingSubject(req: express.Request) {
     : req.headers.authorization;
   const token = extractBearerToken(authorization);
 
-  if (token && hasFirebaseAdminConfig()) {
+  if (token) {
     try {
-      const decoded = await (await getAdminAuth()).verifyIdToken(token);
-      if (decoded.uid) return `uid:${decoded.uid}`;
+      const uid = await verifyFirebaseIdTokenWithRest(token, { apiKey: getFirebaseWebApiKey() });
+      return `uid:${uid}`;
     } catch (error) {
-      console.warn("Firebase Admin token verification failed; falling back to IP quota.", error);
+      console.warn("Firebase ID token verification failed; falling back to IP quota.", error);
     }
   }
 

@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   buildBillingSummary,
+  buildBillingSubjectPlanDocument,
   canUseChat,
   createMemoryBillingStore,
   getUsageDate,
@@ -86,4 +87,26 @@ test("memory billing store can unlock and revoke Pro", async () => {
   assert.equal(free.plan, "free");
   assert.equal(free.isPro, false);
   assert.equal(free.dailyLimit, 2);
+});
+
+test("billing subject plan document omits undefined daily limit overrides", () => {
+  const document = buildBillingSubjectPlanDocument("uid:user-1", "pro", "server-now");
+
+  assert.deepEqual(document, {
+    subjectId: "uid:user-1",
+    plan: "pro",
+    updatedAt: "server-now",
+  });
+  assert.equal(Object.hasOwn(document, "dailyLimitOverride"), false);
+});
+
+test("billing subject plan document keeps explicit null daily limit overrides", () => {
+  const document = buildBillingSubjectPlanDocument("uid:user-1", "pro", "server-now", null);
+
+  assert.deepEqual(document, {
+    subjectId: "uid:user-1",
+    plan: "pro",
+    dailyLimitOverride: null,
+    updatedAt: "server-now",
+  });
 });
