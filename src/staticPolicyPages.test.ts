@@ -11,13 +11,19 @@ test("static Paddle verification pages include crawlable policy content", () => 
   const refunds = readFileSync(new URL("refunds.html", publicRoot), "utf8");
 
   assert.match(pricing, /Hina Pro/);
-  assert.match(pricing, /US\$4\.99/);
+  assert.match(pricing, /US\$4\.99 USD per month/);
+  assert.match(pricing, /Taxes may apply and will be calculated at checkout/);
+  assert.match(pricing, /No free trial, introductory discount, or promotional price is currently offered/);
+  assert.match(pricing, /renews monthly at US\$4\.99 USD per month/);
   assert.match(terms, /Terms of Service/);
   assert.match(terms, /sokieryan@gmail\.com/);
   assert.match(privacy, /Privacy Policy/);
   assert.match(privacy, /Firebase/);
   assert.match(refunds, /Refund Policy/);
   assert.match(refunds, /14 days/);
+
+  const policyText = `${terms}\n${privacy}\n${refunds}`;
+  assert.doesNotMatch(policyText, /planned as a monthly subscription|once enabled|checkout is enabled/);
 });
 
 test("Vercel clean policy URLs rewrite to static HTML documents", () => {

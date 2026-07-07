@@ -347,7 +347,7 @@ export function SettingsModal({
                           <p className="text-xs font-bold uppercase tracking-widest text-[#A26125] dark:text-[#f4bfda]">International support</p>
                           <h3 className="text-lg font-bold text-[#2D2D2D] dark:text-white">Support Hina</h3>
                           <p className="text-sm leading-relaxed text-[#7B5E3C] dark:text-[#e6cfe5]">
-                            International payments are being prepared with Paddle. For now, review Hina Pro pricing and policies before checkout opens.
+                            Hina Pro is US$4.99/month. Taxes may apply and will be calculated at checkout. Paddle processes checkout as merchant of record.
                           </p>
                         </div>
                       </div>

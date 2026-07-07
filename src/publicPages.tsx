@@ -15,8 +15,9 @@ export interface PublicPageData {
 }
 
 export const SUPPORT_EMAIL = "sokieryan@gmail.com";
-export const PRO_PRICE = "US$4.99";
+export const PRO_PRICE = "US$4.99 USD";
 export const PRO_INTERVAL = "month";
+export const PRO_MONTHLY_PRICE = `${PRO_PRICE} per ${PRO_INTERVAL}`;
 export const LAST_UPDATED = "July 7, 2026";
 
 export const PUBLIC_PAGE_LINKS = [
@@ -32,7 +33,7 @@ const pages: Record<PublicPageKey, PublicPageData> = {
     path: "/pricing",
     title: "Pricing",
     eyebrow: "Hina plans",
-    summary: "Hina is an AI English practice companion. The free plan gives casual practice, and Hina Pro adds more daily room for longer conversations.",
+    summary: "Hina is an AI English practice companion. The free plan gives casual practice, and Hina Pro is a monthly subscription for longer conversations.",
     sections: [
       {
         heading: "Free plan",
@@ -44,15 +45,17 @@ const pages: Record<PublicPageKey, PublicPageData> = {
       {
         heading: "Hina Pro",
         body: [
-          `Price: ${PRO_PRICE}/${PRO_INTERVAL}. Taxes may apply depending on your location.`,
-          "Includes unlimited daily chats, more room for proactive Hina moments, and early access to selected experimental learning features.",
-          "Checkout will be processed by Paddle as merchant of record after website verification is complete. You are not charged until you confirm a Paddle checkout.",
+          `Price: ${PRO_MONTHLY_PRICE}.`,
+          "Includes unlimited daily AI English chats, profile settings, cloud chat history for signed-in users, voice playback, proactive Hina moments, and early access to selected experimental learning features.",
+          "Taxes may apply and will be calculated at checkout. The checkout shows applicable taxes before payment is confirmed.",
+          "No free trial, introductory discount, or promotional price is currently offered.",
         ],
       },
       {
         heading: "Billing and cancellation",
         body: [
-          "Subscriptions renew monthly unless canceled before the next billing date.",
+          `Hina Pro renews monthly at ${PRO_MONTHLY_PRICE} unless canceled before the next billing date.`,
+          "Checkout is processed by Paddle as merchant of record. You are not charged until you confirm the Paddle checkout.",
           "You can cancel future renewals through the billing management link provided after purchase, or by contacting support.",
           "Please review the Terms of Service, Privacy Policy, and Refund Policy before purchasing.",
         ],
@@ -83,8 +86,8 @@ const pages: Record<PublicPageKey, PublicPageData> = {
       {
         heading: "Subscriptions",
         body: [
-          "Hina Pro is planned as a monthly subscription. Paid checkout will be handled by Paddle as merchant of record once enabled.",
-          "Subscription benefits, limits, and pricing are shown on the pricing page. We may change plan features for future billing periods with reasonable notice.",
+          `Hina Pro is a monthly subscription priced at ${PRO_MONTHLY_PRICE}. Paid checkout is handled by Paddle as merchant of record.`,
+          "Subscription benefits, limits, taxes, and cancellation details are shown on the pricing page. We may change plan features for future billing periods with reasonable notice.",
         ],
       },
       {
@@ -114,7 +117,7 @@ const pages: Record<PublicPageKey, PublicPageData> = {
         body: [
           "Account information such as email address, display name, sign-in provider, and avatar URL is handled through Firebase Authentication and Firebase services.",
           "Chat messages, profile settings, proactive learning preferences, usage counters, and billing status may be stored so Hina can provide history, quota, and personalization features.",
-          "If Paddle checkout is enabled, Paddle may collect payment, billing, tax, and transaction information as merchant of record.",
+          "When you use Paddle checkout, Paddle may collect payment, billing, tax, and transaction information as merchant of record.",
         ],
       },
       {
@@ -127,7 +130,7 @@ const pages: Record<PublicPageKey, PublicPageData> = {
       {
         heading: "Service providers",
         body: [
-          "Hina uses Firebase for authentication, Firestore, and storage; Vercel for hosting; AI providers for model responses; and Paddle for paid checkout when enabled.",
+          "Hina uses Firebase for authentication, Firestore, and storage; Vercel for hosting; AI providers for model responses; and Paddle for paid checkout.",
           "These providers process data according to their own terms and privacy commitments.",
         ],
       },
@@ -145,7 +148,7 @@ const pages: Record<PublicPageKey, PublicPageData> = {
     path: "/refunds",
     title: "Refund Policy",
     eyebrow: "Billing support",
-    summary: "This policy explains when Hina Pro subscription payments may be refunded once paid checkout is enabled.",
+    summary: "This policy explains when Hina Pro subscription payments may be refunded.",
     sections: [
       {
         heading: "Refund window",
@@ -220,8 +223,8 @@ export function PublicPage({ page }: { page: PublicPageData }) {
             </article>
             <article className="rounded-2xl border border-[#D8E7DF] bg-[#F3FAF7] p-6 shadow-sm">
               <p className="text-sm font-black uppercase tracking-widest text-[#2F5D54]">Hina Pro</p>
-              <h2 className="mt-2 text-3xl font-black">{PRO_PRICE}<span className="text-base text-[#6F675D]">/{PRO_INTERVAL}</span></h2>
-              <p className="mt-2 text-sm font-semibold text-[#47625b]">Unlimited daily chats after checkout is enabled</p>
+              <h2 className="mt-2 text-3xl font-black">{PRO_MONTHLY_PRICE}</h2>
+              <p className="mt-2 text-sm font-semibold text-[#47625b]">Unlimited daily AI English chats</p>
             </article>
           </div>
         )}
