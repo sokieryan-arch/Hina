@@ -7,7 +7,6 @@ import { buildOpenAIChatMessages, readAIConfig, type HinaHistoryMessage } from "
 import { verifyFirebaseIdTokenWithRest } from "./src/server/auth.js";
 import { extractPaddleBillingUpdate, readPaddleServerConfig, verifyPaddleWebhookSignature } from "./src/server/paddle.js";
 import { isOperationTimeoutError, withTimeout } from "./src/server/timeout.js";
-import firebaseClientConfig from "./firebase-applet-config.json";
 
 const aiConfig = readAIConfig();
 const REQUEST_TIMEOUT_MS = aiConfig.timeoutMs;
@@ -269,8 +268,7 @@ async function generateSpeech(text: string) {
 
 function getFirebaseWebApiKey() {
   return process.env.FIREBASE_WEB_API_KEY
-    || process.env.VITE_FIREBASE_API_KEY
-    || firebaseClientConfig.apiKey;
+    || process.env.VITE_FIREBASE_API_KEY;
 }
 
 async function getBillingSubject(req: express.Request) {
