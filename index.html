@@ -4,9 +4,43 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Hina</title>
+    <style>
+      #static-site-links {
+        max-width: 760px;
+        margin: 56px auto;
+        padding: 0 24px;
+        color: #292521;
+        font-family: ui-sans-serif, system-ui, sans-serif;
+        line-height: 1.7;
+      }
+
+      #static-site-links a {
+        color: #2563eb;
+        font-weight: 700;
+        margin-right: 16px;
+      }
+
+      .hina-js #static-site-links {
+        display: none;
+      }
+    </style>
+    <script>
+      document.documentElement.classList.add("hina-js");
+    </script>
   </head>
   <body>
     <div id="root"></div>
+    <section id="static-site-links" aria-label="Hina pricing and policy links">
+      <h1>Hina</h1>
+      <p>Hina Pro is a monthly AI English practice subscription priced at US$4.99 USD per month.</p>
+      <p>Taxes may apply and will be calculated at checkout.</p>
+      <nav>
+        <a href="/pricing">Pricing</a>
+        <a href="/terms">Terms of Service</a>
+        <a href="/privacy">Privacy Policy</a>
+        <a href="/refunds">Refund Policy</a>
+      </nav>
+    </section>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
