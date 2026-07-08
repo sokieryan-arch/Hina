@@ -4,7 +4,11 @@ import { GoogleGenAI, Type, Modality } from "@google/genai";
 import OpenAI from "openai";
 import { canUseChat, createBillingStoreFromEnv } from "./src/server/billing.js";
 import { buildOpenAIChatMessages, readAIConfig, type HinaHistoryMessage } from "./src/server/aiConfig.js";
-import { verifyFirebaseIdTokenWithRest } from "./src/server/auth.js";
+import {
+  assertFirebaseUserCanUseProtectedApis,
+  isEmailVerificationRequiredError,
+  verifyFirebaseIdTokenWithRest,
+} from "./src/server/auth.js";
 import { extractPaddleBillingUpdate, readPaddleServerConfig, verifyPaddleWebhookSignature } from "./src/server/paddle.js";
 import { isOperationTimeoutError, withTimeout } from "./src/server/timeout.js";
 
@@ -271,7 +275,7 @@ function getFirebaseWebApiKey() {
     || process.env.VITE_FIREBASE_API_KEY;
 }
 
-async function getBillingSubject(req: express.Request) {
+async function getBillingSubject(req: express.Request, options: { requireVerifiedEmail?: boolean } = {}) {
   const authorization = Array.isArray(req.headers.authorization)
     ? req.headers.authorization[0]
     : req.headers.authorization;
@@ -279,14 +283,25 @@ async function getBillingSubject(req: express.Request) {
 
   if (token) {
     try {
-      const uid = await verifyFirebaseIdTokenWithRest(token, { apiKey: getFirebaseWebApiKey() });
-      return `uid:${uid}`;
+      const firebaseUser = await verifyFirebaseIdTokenWithRest(token, { apiKey: getFirebaseWebApiKey() });
+      if (options.requireVerifiedEmail) {
+        assertFirebaseUserCanUseProtectedApis(firebaseUser);
+      }
+      return `uid:${firebaseUser.uid}`;
     } catch (error) {
+      if (isEmailVerificationRequiredError(error)) throw error;
       console.warn("Firebase ID token verification failed; falling back to IP quota.", error);
     }
   }
 
   return `ip:${getRequestIp(req)}`;
+}
+
+function sendEmailVerificationRequired(res: express.Response) {
+  return res.status(403).json({
+    error: "email_not_verified",
+    message: "Please verify your email address before using Hina.",
+  });
 }
 
 const app = express();
@@ -329,7 +344,7 @@ app.get("/api/billing/me", async (req, res) => {
 
 app.post("/api/billing/checkout", async (req, res) => {
   try {
-    const subject = await getBillingSubject(req);
+    const subject = await getBillingSubject(req, { requireVerifiedEmail: true });
     res.json({
       provider: "paddle",
       priceId: paddleConfig.priceId,
@@ -337,6 +352,7 @@ app.post("/api/billing/checkout", async (req, res) => {
       mode: "client_checkout",
     });
   } catch (error) {
+    if (isEmailVerificationRequiredError(error)) return sendEmailVerificationRequired(res);
     console.error("Billing Checkout Error:", error);
     res.status(500).json({ error: "billing_checkout_failed" });
   }
@@ -354,7 +370,7 @@ app.post("/api/chat", async (req, res) => {
       return res.status(400).json({ error: "Invalid messages format" });
     }
 
-    const billingSubject = await getBillingSubject(req);
+    const billingSubject = await getBillingSubject(req, { requireVerifiedEmail: true });
     const billing = await billingStore.getBillingSummary(billingSubject);
     if (!canUseChat(billing)) {
       return res.status(402).json({ error: "quota_exceeded", billing });
@@ -401,6 +417,7 @@ app.post("/api/chat", async (req, res) => {
     const nextBilling = await billingStore.incrementChatUsage(billingSubject);
     res.json({ ...parsed, billing: nextBilling });
   } catch (error: any) {
+    if (isEmailVerificationRequiredError(error)) return sendEmailVerificationRequired(res);
     console.error("Chat Error:", error);
     res.status(500).json({ error: "Failed to generate response. Please try again later." });
   }
@@ -416,6 +433,7 @@ app.post("/api/tts", async (req, res) => {
     if (!text) {
       return res.status(400).json({ error: "Missing text" });
     }
+    await getBillingSubject(req, { requireVerifiedEmail: true });
 
     let speech;
     let retries = 3;
@@ -456,6 +474,7 @@ app.post("/api/tts", async (req, res) => {
 
     res.json(speech);
   } catch (error: any) {
+    if (isEmailVerificationRequiredError(error)) return sendEmailVerificationRequired(res);
     console.error("TTS Error:", error);
     res.status(500).json({ error: "Failed to generate TTS" });
   }

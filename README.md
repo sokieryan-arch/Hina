@@ -26,7 +26,7 @@ View your app in AI Studio: https://ai.studio/apps/f545bc87-5883-43c8-b172-c964c
 
 ## Production Notes
 
-- Enable Firebase Authentication providers for Email/Password and Google. Add every deployed or preview host, including local `localhost`, to Firebase Authentication's authorized domains.
+- Enable Firebase Authentication providers for Email/Password and Google. Add every deployed or preview host, including local `localhost`, to Firebase Authentication's authorized domains. Email/Password users must complete Firebase email verification before chat, TTS, or checkout APIs accept their session.
 - Deploy both `firestore.rules` and `storage.rules`. Avatar uploads use Firebase Storage under `avatars/{uid}/...` and are limited to JPG, PNG, WebP, or GIF files up to 10MB.
 - Proactive settings are saved at `/users/{uid}/settings/proactive`, with browser localStorage retained as a fallback and migration source.
 - AI calls use OpenAI when `OPENAI_API_KEY` is configured. Set `AI_PROVIDER=openai` to force OpenAI, or `AI_PROVIDER=gemini` to force the Gemini fallback. Without `AI_PROVIDER`, OpenAI wins when both keys exist. After changing Vercel environment variables, redeploy Production.

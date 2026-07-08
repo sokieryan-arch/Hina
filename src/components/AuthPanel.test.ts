@@ -12,6 +12,7 @@ test("auth panel renders English account entry with Google instead of WeChat", (
     onEmailLogin: noop,
     onEmailRegister: noop,
     onPasswordReset: noop,
+    initialMode: "register",
   }));
 
   assert.match(markup, /Sign in/);
@@ -19,6 +20,7 @@ test("auth panel renders English account entry with Google instead of WeChat", (
   assert.match(markup, /Forgot password/);
   assert.match(markup, /Email/);
   assert.match(markup, /Continue with Google/);
+  assert.match(markup, /We will email a verification link before Hina opens your chat history/);
   assert.doesNotMatch(markup, /Made for mobile/);
   assert.doesNotMatch(markup, /international edition keeps Firebase Auth/i);
   assert.doesNotMatch(markup, /登录|注册|忘记密码|邮箱|适合手机/);

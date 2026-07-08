@@ -13,6 +13,7 @@ interface AuthPanelProps {
   onEmailRegister: (input: { email: string; password: string; displayName: string }) => Promise<void> | void;
   onPasswordReset: (input: { email: string }) => Promise<void> | void;
   feedback?: string | null;
+  initialMode?: AuthMode;
 }
 
 interface AuthFormInput {
@@ -51,8 +52,9 @@ export function AuthPanel({
   onEmailRegister,
   onPasswordReset,
   feedback,
+  initialMode = "login",
 }: AuthPanelProps) {
-  const [mode, setMode] = useState<AuthMode>("login");
+  const [mode, setMode] = useState<AuthMode>(initialMode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -70,7 +72,7 @@ export function AuthPanel({
         eyebrow: "Create account",
         title: "Give Hina a reliable way to remember you",
         submit: "Create account",
-        helper: "After sign-up, your chat history and profile settings are saved with Firebase.",
+        helper: "We will email a verification link before Hina opens your chat history.",
       };
     }
     if (mode === "reset") {

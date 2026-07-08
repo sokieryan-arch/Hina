@@ -9,6 +9,7 @@ import { BillingSummary, Message, ProactiveSettings, UserProfile } from "./types
 import { ChatMessage } from "./components/ChatMessage";
 import { SettingsModal } from "./components/SettingsModal";
 import { AuthPanel } from "./components/AuthPanel";
+import { EmailVerificationPanel } from "./components/EmailVerificationPanel";
 import { getPublicPage, PublicPage } from "./publicPages";
 import { Send, Moon, Sun, LogOut, Settings } from "lucide-react";
 import {
@@ -25,6 +26,7 @@ import {
   getRedirectResult,
   GoogleAuthProvider,
   onAuthStateChanged,
+  sendEmailVerification,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signInWithPopup,
@@ -98,6 +100,10 @@ function profileFromFirebaseUser(user: User): UserProfile {
   };
 }
 
+function requiresEmailVerification(user: User) {
+  return !user.emailVerified && user.providerData.some((provider) => provider.providerId === "password");
+}
+
 function renderChatErrorMessage(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
   if (message === "quota_exceeded") {
@@ -127,6 +133,7 @@ export default function App() {
   const [isTyping, setIsTyping] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">(() => loadTheme());
   const [user, setUser] = useState<User | null>(null);
+  const [pendingVerificationUser, setPendingVerificationUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [billing, setBilling] = useState<BillingSummary | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
@@ -139,14 +146,25 @@ export default function App() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const userId = user?.uid;
 
+  const applyAuthenticatedUser = useCallback((currentUser: User | null) => {
+    if (currentUser && requiresEmailVerification(currentUser)) {
+      setPendingVerificationUser(currentUser);
+      setUser(null);
+      return;
+    }
+
+    setPendingVerificationUser(null);
+    setUser(currentUser);
+    if (currentUser) setAuthFeedback(null);
+  }, []);
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      if (currentUser) setAuthFeedback(null);
+      applyAuthenticatedUser(currentUser);
       setIsAuthReady(true);
     });
     return () => unsubscribe();
-  }, []);
+  }, [applyAuthenticatedUser]);
 
   useEffect(() => {
     let cancelled = false;
@@ -395,6 +413,8 @@ export default function App() {
     await updateProfile(credential.user, profile);
     setUserProfile(profile);
     await saveUserProfile(credential.user.uid, profile);
+    await sendEmailVerification(credential.user);
+    setAuthFeedback("Verification email sent. Check your inbox, then come back here.");
   };
 
   const handlePasswordReset = async ({ email }: { email: string }) => {
@@ -405,11 +425,50 @@ export default function App() {
   const handleLogout = async () => {
     try {
       await signOut(auth);
+      setPendingVerificationUser(null);
       setUserProfile(null);
       setBilling(null);
       setAuthFeedback(null);
     } catch (error) {
       console.error("Logout failed:", error);
+    }
+  };
+
+  const handleVerificationRefresh = async () => {
+    if (!pendingVerificationUser) return;
+
+    setAuthFeedback(null);
+    try {
+      await pendingVerificationUser.reload();
+      const refreshedUser = auth.currentUser;
+      if (!refreshedUser) {
+        setPendingVerificationUser(null);
+        return;
+      }
+
+      if (requiresEmailVerification(refreshedUser)) {
+        setPendingVerificationUser(refreshedUser);
+        setAuthFeedback("Still waiting for verification. Open the email link, then refresh again.");
+        return;
+      }
+
+      applyAuthenticatedUser(refreshedUser);
+    } catch (error) {
+      console.error("Email verification refresh failed:", error);
+      setAuthFeedback(formatAuthErrorMessage(error));
+    }
+  };
+
+  const handleResendVerificationEmail = async () => {
+    if (!pendingVerificationUser) return;
+
+    setAuthFeedback(null);
+    try {
+      await sendEmailVerification(pendingVerificationUser);
+      setAuthFeedback("Verification email sent again. Check your inbox and spam folder.");
+    } catch (error) {
+      console.error("Email verification resend failed:", error);
+      setAuthFeedback(formatAuthErrorMessage(error));
     }
   };
 
@@ -577,6 +636,18 @@ export default function App() {
           <p className="text-sm font-bold text-[#8A817C]">Hina is preparing your session...</p>
         </div>
       </div>
+    );
+  }
+
+  if (pendingVerificationUser) {
+    return (
+      <EmailVerificationPanel
+        email={pendingVerificationUser.email}
+        feedback={authFeedback}
+        onRefresh={handleVerificationRefresh}
+        onResend={handleResendVerificationEmail}
+        onSignOut={handleLogout}
+      />
     );
   }
 
