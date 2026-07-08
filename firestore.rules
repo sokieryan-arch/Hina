@@ -45,7 +45,7 @@ service cloud.firestore {
         && data.text is string && data.text.size() <= 100000
         && data.timestamp is number
         && data.createdAt == request.time
-        && (data.keys().hasAll(['type']) ? (data.type is string && (data.type == 'response' || data.type == 'correction' || data.type == 'insight')) : true);
+        && (data.keys().hasAll(['type']) ? (data.type is string && (data.type == 'response' || data.type == 'correction' || data.type == 'insight' || data.type == 'proactive')) : true);
     }
 
     function isValidProactiveSettings(data) {
