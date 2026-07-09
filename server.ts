@@ -145,6 +145,16 @@ function getErrorCode(error: unknown) {
   return typeof type === "string" ? type : null;
 }
 
+function describeAIError(error: unknown) {
+  return {
+    provider: aiConfig.provider,
+    chatModel: aiConfig.chatModel,
+    status: getErrorStatus(error),
+    code: getErrorCode(error),
+    message: getErrorMessage(error).slice(0, 500),
+  };
+}
+
 function isQuotaExhaustedError(error: unknown) {
   const message = getErrorMessage(error).toLowerCase();
   const code = getErrorCode(error)?.toLowerCase();
@@ -382,9 +392,11 @@ app.post("/api/chat", async (req, res) => {
         break;
       } catch (err: any) {
         if (isOperationTimeoutError(err)) {
+          console.warn("AI chat timed out", describeAIError(err));
           return res.status(503).json({ error: "The AI response timed out. Please try again in a moment.", code: 503 });
         }
         if (isQuotaExhaustedError(err)) {
+          console.warn("AI chat quota exhausted", describeAIError(err));
           return res.status(429).json({
             error: `${aiConfig.provider === "openai" ? "The OpenAI" : "The Gemini"} API key has no remaining quota. Please update the server API key or billing settings.`,
             code: 429,
@@ -393,14 +405,16 @@ app.post("/api/chat", async (req, res) => {
         if (isRetryableAIError(err)) {
           retries -= 1;
           if (retries === 0) {
+            console.warn("AI chat retry exhausted", describeAIError(err));
             return res.status(503).json({ error: "The AI is currently experiencing high demand. Please try again later.", code: 503 });
           }
           const fallbackDelay = (4 - retries) * 1000;
           const { delayMs, requestedSeconds } = getExternalRetryDelayMs(err, fallbackDelay);
           if (requestedSeconds && requestedSeconds > 5) {
+            console.warn("AI chat requested long retry delay", { ...describeAIError(err), requestedSeconds });
             return res.status(429).json({ error: `The AI is temporarily out of breath. Let's wait about ${Math.ceil(requestedSeconds)} seconds and try again!`, code: 429 });
           }
-          console.log(`Rate limited or unavailable on Chat. Retrying in ${delayMs}ms... (${retries} retries left)`);
+          console.log("Rate limited or unavailable on Chat", { ...describeAIError(err), delayMs, retries });
           await new Promise((resolve) => setTimeout(resolve, delayMs));
         } else {
           throw err;
