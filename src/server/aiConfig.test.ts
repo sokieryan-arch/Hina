@@ -18,7 +18,24 @@ test("readAIConfig can still choose Gemini as a fallback provider", () => {
 
   assert.equal(config.provider, "gemini");
   assert.equal(config.apiKey, "AIza-test");
+  assert.equal(config.chatModel, "gemini-3.5-flash");
+  assert.equal(config.ttsModel, "gemini-3.1-flash-tts-preview");
   assert.equal(config.timeoutMs, 20000);
+});
+
+test("readAIConfig supports Gemini-specific model and timeout settings", () => {
+  const config = readAIConfig({
+    AI_PROVIDER: "gemini",
+    GEMINI_API_KEY: "AIza-test",
+    GEMINI_CHAT_MODEL: "gemini-test-chat",
+    GEMINI_TTS_MODEL: "gemini-test-tts",
+    GEMINI_REQUEST_TIMEOUT_MS: "45000",
+  });
+
+  assert.equal(config.provider, "gemini");
+  assert.equal(config.chatModel, "gemini-test-chat");
+  assert.equal(config.ttsModel, "gemini-test-tts");
+  assert.equal(config.timeoutMs, 45000);
 });
 
 test("readAIConfig reports a precise missing key for a forced provider", () => {

@@ -205,7 +205,7 @@ async function generateChatResponse(messages: HinaHistoryMessage[]) {
     }));
 
     const response = await withTimeout(geminiAI.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: aiConfig.chatModel,
       contents,
       config: {
         systemInstruction: HINA_SYSTEM_INSTRUCTION,
@@ -236,14 +236,12 @@ async function generateSpeech(text: string) {
 
   if (aiConfig.provider === "gemini" && geminiAI) {
     const response = await withTimeout(geminiAI.models.generateContent({
-      model: "gemini-3.1-flash-tts-preview",
+      model: aiConfig.ttsModel,
       contents: [{ parts: [{ text }] }],
       config: {
         responseModalities: [Modality.AUDIO],
         speechConfig: {
-          voiceConfig: {
-            prebuiltVoiceConfig: { voiceName: "Aoede" },
-          },
+          voiceConfig: { prebuiltVoiceConfig: { voiceName: aiConfig.ttsVoice } },
         },
       },
     }), REQUEST_TIMEOUT_MS, "Gemini TTS request");

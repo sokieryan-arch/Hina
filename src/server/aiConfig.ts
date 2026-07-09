@@ -25,19 +25,28 @@ function readSecret(raw: string | undefined) {
   return withoutWrappingQuotes || null;
 }
 
-function readTimeoutMs(env: Record<string, string | undefined>) {
-  const raw = env.OPENAI_REQUEST_TIMEOUT_MS || env.GEMINI_REQUEST_TIMEOUT_MS || "20000";
+function readTimeoutMs(env: Record<string, string | undefined>, provider: AIProviderName | null) {
+  const raw = provider === "gemini"
+    ? env.GEMINI_REQUEST_TIMEOUT_MS || env.OPENAI_REQUEST_TIMEOUT_MS || "20000"
+    : env.OPENAI_REQUEST_TIMEOUT_MS || env.GEMINI_REQUEST_TIMEOUT_MS || "20000";
   const parsed = Number.parseInt(raw, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 20000;
 }
 
 function withBaseConfig(config: Pick<AIConfig, "provider" | "apiKey" | "error">, env: Record<string, string | undefined>): AIConfig {
+  const isGemini = config.provider === "gemini";
   return {
     ...config,
-    chatModel: env.OPENAI_CHAT_MODEL || "gpt-4o-mini",
-    ttsModel: env.OPENAI_TTS_MODEL || "tts-1",
-    ttsVoice: env.OPENAI_TTS_VOICE || "nova",
-    timeoutMs: readTimeoutMs(env),
+    chatModel: isGemini
+      ? env.GEMINI_CHAT_MODEL || "gemini-3.5-flash"
+      : env.OPENAI_CHAT_MODEL || "gpt-4o-mini",
+    ttsModel: isGemini
+      ? env.GEMINI_TTS_MODEL || "gemini-3.1-flash-tts-preview"
+      : env.OPENAI_TTS_MODEL || "tts-1",
+    ttsVoice: isGemini
+      ? env.GEMINI_TTS_VOICE || "Aoede"
+      : env.OPENAI_TTS_VOICE || "nova",
+    timeoutMs: readTimeoutMs(env, config.provider),
   } as AIConfig;
 }
 
