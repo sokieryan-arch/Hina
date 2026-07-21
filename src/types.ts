@@ -32,3 +32,19 @@ export interface BillingSummary {
   remainingToday: number | null;
   resetAt: string;
 }
+
+export type HinaSpaceView = "space" | "moments" | "notes" | "wishlist" | "relationship";
+export type AppView = "chat" | HinaSpaceView;
+export type WishlistKind = "goal" | "hook" | "place" | "note";
+
+export interface WishlistItem {
+  id: string;
+  kind: WishlistKind;
+  title: string;
+  details: string | null;
+  progress: number;
+  completed: boolean;
+  targetDate: string | null;
+  createdAt: number;
+  updatedAt: number;
+}

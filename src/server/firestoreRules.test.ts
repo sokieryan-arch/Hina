@@ -8,3 +8,11 @@ test("Firestore message rules allow proactive messages to persist", () => {
 
   assert.match(typeValidation, /data\.type == 'proactive'/);
 });
+
+test("Firestore rules allow five proactive topics and owner wishlist Space data", () => {
+  const source = readFileSync(new URL("../../firestore.rules", import.meta.url), "utf8");
+
+  assert.match(source, /data\.favoriteTopics\.size\(\) <= 5/);
+  assert.match(source, /match \/space\/wishlist/);
+  assert.match(source, /isValidWishlist\(incoming\(\)\)/);
+});

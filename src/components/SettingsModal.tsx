@@ -10,6 +10,7 @@ import {
   Coffee,
   Crown,
   Image as ImageIcon,
+  Plus,
   Settings,
   Sparkles,
   Trash2,
@@ -36,6 +37,21 @@ interface SettingsModalProps {
   proactiveSettings: ProactiveSettings;
   onProactiveSettingsChange: (settings: ProactiveSettings) => void;
 }
+
+const FAVORITE_TOPIC_OPTIONS = [
+  "Daily life",
+  "Films & TV",
+  "Music",
+  "Food",
+  "Travel",
+  "Campus",
+  "Books",
+  "Art",
+  "Tech",
+  "IELTS",
+  "TOEFL",
+  "Work",
+] as const;
 
 function formatUsage(billing: BillingSummary | null) {
   if (!billing) return "Loading usage...";
@@ -73,7 +89,9 @@ export function SettingsModal({
   const [displayName, setDisplayName] = useState(displayNameFrom(user, profile));
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(photoUrlFrom(user, profile));
-  const [topicText, setTopicText] = useState(proactiveSettings.favoriteTopics.join(", "));
+  const [customTopicOpen, setCustomTopicOpen] = useState(false);
+  const [customTopic, setCustomTopic] = useState("");
+  const [topicMessage, setTopicMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [profileMessage, setProfileMessage] = useState<string | null>(null);
   const [billingMessage, setBillingMessage] = useState<string | null>(null);
@@ -85,7 +103,9 @@ export function SettingsModal({
     setDisplayName(displayNameFrom(user, profile));
     setAvatarFile(null);
     setAvatarPreview(photoUrlFrom(user, profile));
-    setTopicText(proactiveSettings.favoriteTopics.join(", "));
+    setCustomTopicOpen(false);
+    setCustomTopic("");
+    setTopicMessage(null);
     setProfileMessage(null);
     setBillingMessage(null);
   }, [isOpen, proactiveSettings.favoriteTopics, profile, user]);
@@ -153,6 +173,43 @@ export function SettingsModal({
   const updateProactiveSettings = (patch: Partial<ProactiveSettings>) => {
     const next = { ...proactiveSettings, ...patch };
     onProactiveSettingsChange(next);
+  };
+
+  const toggleTopic = (topic: string) => {
+    const selected = proactiveSettings.favoriteTopics.includes(topic);
+    if (!selected && proactiveSettings.favoriteTopics.length >= 5) {
+      setTopicMessage("Remove one topic before adding another.");
+      return;
+    }
+    setTopicMessage(null);
+    updateProactiveSettings({
+      favoriteTopics: selected
+        ? proactiveSettings.favoriteTopics.filter((item) => item !== topic)
+        : [...proactiveSettings.favoriteTopics, topic],
+    });
+  };
+
+  const addCustomTopic = () => {
+    const trimmed = customTopic.trim().replace(/\s+/g, " ");
+    if (!trimmed) return;
+
+    if (proactiveSettings.favoriteTopics.length >= 5) {
+      setTopicMessage("Remove one topic before adding another.");
+      return;
+    }
+
+    const canonical = FAVORITE_TOPIC_OPTIONS.find((topic) => topic.toLowerCase() === trimmed.toLowerCase()) ?? trimmed;
+    if (proactiveSettings.favoriteTopics.some((topic) => topic.toLowerCase() === canonical.toLowerCase())) {
+      setTopicMessage("That topic is already selected.");
+      return;
+    }
+
+    updateProactiveSettings({
+      favoriteTopics: [...proactiveSettings.favoriteTopics, canonical],
+    });
+    setCustomTopic("");
+    setCustomTopicOpen(false);
+    setTopicMessage(null);
   };
 
   const startUpgrade = async () => {
@@ -415,21 +472,93 @@ export function SettingsModal({
                       </label>
                     </div>
 
-                    <label className="block space-y-2 text-sm font-bold text-[#4A4A4A] dark:text-[#e5dceb]">
-                      <span className="flex items-center gap-2">
-                        <Sparkles size={16} />
-                        Favorite topics
+                    <div className="block space-y-3 text-sm font-bold text-[#4A4A4A] dark:text-[#e5dceb]">
+                      <span className="flex items-center justify-between gap-2">
+                        <span className="flex items-center gap-2">
+                          <Sparkles size={16} />
+                          Favorite topics
+                        </span>
+                        <span className="text-xs font-medium text-[#8A817C] dark:text-[#a58ebd]">{proactiveSettings.favoriteTopics.length}/5</span>
                       </span>
-                      <input
-                        value={topicText}
-                        onChange={(event) => setTopicText(event.target.value)}
-                        onBlur={() => updateProactiveSettings({
-                          favoriteTopics: topicText.split(",").map((topic) => topic.trim()).filter(Boolean).slice(0, 3),
+                      <div className="flex flex-wrap gap-2">
+                        {[...FAVORITE_TOPIC_OPTIONS, ...proactiveSettings.favoriteTopics.filter((topic) => !FAVORITE_TOPIC_OPTIONS.includes(topic as typeof FAVORITE_TOPIC_OPTIONS[number]))].map((topic) => {
+                          const selected = proactiveSettings.favoriteTopics.includes(topic);
+                          return (
+                            <button
+                              key={topic}
+                              type="button"
+                              onClick={() => toggleTopic(topic)}
+                              aria-pressed={selected}
+                              disabled={!selected && proactiveSettings.favoriteTopics.length >= 5}
+                              className={`rounded-full border px-3 py-2 text-xs font-bold transition-colors ${selected
+                                ? "border-[#5A5A40] bg-[#5A5A40] text-white dark:border-[#8b66a3] dark:bg-[#48285c]"
+                                : "border-[#DED8CC] bg-[#F9F6F0] text-[#746B66] dark:border-[#483651] dark:bg-[#291a33] dark:text-[#bda9ca]"} disabled:cursor-not-allowed disabled:opacity-40`}
+                            >
+                              {topic}
+                            </button>
+                          );
                         })}
-                        placeholder="films, food, IELTS"
-                        className="w-full bg-[#F7F2E9] dark:bg-[#291a33] rounded-xl px-4 py-2.5 outline-none border border-[#E8E2D6] dark:border-[#3a2347] focus:ring-2 focus:ring-[#FF9F1C] text-sm"
-                      />
-                    </label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (proactiveSettings.favoriteTopics.length >= 5) {
+                              setTopicMessage("Remove one topic before adding another.");
+                              return;
+                            }
+                            setCustomTopicOpen((open) => !open);
+                            if (customTopicOpen) setCustomTopic("");
+                            setTopicMessage(null);
+                          }}
+                          aria-label={customTopicOpen ? "Close custom topic" : "Add custom topic"}
+                          aria-expanded={customTopicOpen}
+                          className="inline-flex min-h-8 min-w-8 items-center justify-center rounded-full border border-dashed border-[#A79D91] bg-white px-2.5 text-[#5A5A40] transition-colors hover:border-[#5A5A40] hover:bg-[#F2EEE7] dark:border-[#806991] dark:bg-[#1c1224] dark:text-[#d8cadf] dark:hover:bg-[#342042]"
+                        >
+                          <Plus size={16} className={`transition-transform ${customTopicOpen ? "rotate-45" : ""}`} />
+                        </button>
+                      </div>
+                      <AnimatePresence initial={false}>
+                        {customTopicOpen && (
+                          <motion.form
+                            initial={{ opacity: 0, y: -5 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -5 }}
+                            onSubmit={(event) => {
+                              event.preventDefault();
+                              addCustomTopic();
+                            }}
+                            className="flex items-center gap-2 rounded-[20px] border border-[#DED8CC] bg-[#F9F6F0] p-1.5 dark:border-[#483651] dark:bg-[#291a33]"
+                          >
+                            <input
+                              autoFocus
+                              value={customTopic}
+                              onChange={(event) => setCustomTopic(event.target.value)}
+                              onKeyDown={(event) => {
+                                if (event.key === "Escape") {
+                                  setCustomTopic("");
+                                  setCustomTopicOpen(false);
+                                  setTopicMessage(null);
+                                }
+                              }}
+                              maxLength={40}
+                              placeholder="New topic"
+                              aria-label="Custom favorite topic"
+                              className="min-w-0 flex-1 bg-transparent px-3 py-2 text-sm font-medium text-[#4A4A4A] outline-none placeholder:text-[#A49B94] dark:text-[#e5dceb] dark:placeholder:text-[#806f8d]"
+                            />
+                            <button
+                              type="submit"
+                              disabled={!customTopic.trim()}
+                              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#5A5A40] text-white transition-transform hover:scale-[1.03] disabled:opacity-35 dark:bg-[#48285c]"
+                              aria-label="Save custom topic"
+                            >
+                              <Plus size={16} />
+                            </button>
+                          </motion.form>
+                        )}
+                      </AnimatePresence>
+                      {topicMessage && (
+                        <p className="text-xs font-medium text-[#8A6A43] dark:text-[#d8bddc]">{topicMessage}</p>
+                      )}
+                    </div>
                   </section>
 
                   <section className="border-t border-[#E8E2D6] dark:border-[#3a2347] pt-6">

@@ -57,6 +57,10 @@ test("settings modal renders profile upload controls and Pro usage", () => {
   assert.match(markup, /Free Plan/);
   assert.match(markup, /4\/30 chats used today/);
   assert.match(markup, /Upgrade/);
+  assert.match(markup, /Favorite topics/);
+  assert.match(markup, /2\/5/);
+  assert.match(markup, /Daily life/);
+  assert.match(markup, /Films &amp; TV/);
 });
 
 test("settings modal shows international support status without mainland QR methods", () => {

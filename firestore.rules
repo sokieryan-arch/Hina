@@ -74,7 +74,15 @@ service cloud.firestore {
         && data.quietHoursEnd is string
         && data.quietHoursEnd.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$')
         && data.favoriteTopics is list
-        && data.favoriteTopics.size() <= 3
+        && data.favoriteTopics.size() <= 5
+        && data.updatedAt == request.time;
+    }
+
+    function isValidWishlist(data) {
+      return data.keys().hasAll(['items', 'updatedAt'])
+        && data.keys().hasOnly(['items', 'updatedAt'])
+        && data.items is list
+        && data.items.size() <= 50
         && data.updatedAt == request.time;
     }
 
@@ -148,6 +156,16 @@ service cloud.firestore {
           && request.auth.token.email_verified == true
           && isValidId(userId)
           && isValidProactiveSettings(incoming());
+      }
+
+      match /space/wishlist {
+        allow get: if isSignedIn() && request.auth.uid == userId && isValidId(userId);
+
+        allow create, update: if isSignedIn()
+          && request.auth.uid == userId
+          && request.auth.token.email_verified == true
+          && isValidId(userId)
+          && isValidWishlist(incoming());
       }
     }
   }

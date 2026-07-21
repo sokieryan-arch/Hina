@@ -5,21 +5,25 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { nanoid } from "nanoid";
-import { BillingSummary, Message, ProactiveSettings, UserProfile } from "./types";
+import { AppView, BillingSummary, HinaSpaceView, Message, ProactiveSettings, UserProfile, WishlistItem } from "./types";
 import { ChatMessage } from "./components/ChatMessage";
 import { SettingsModal } from "./components/SettingsModal";
 import { AuthPanel } from "./components/AuthPanel";
 import { EmailVerificationPanel } from "./components/EmailVerificationPanel";
+import { AppHeader } from "./components/AppHeader";
+import { HinaSpace } from "./components/HinaSpace";
 import { getPublicPage, PublicPage } from "./publicPages";
-import { Send, Moon, Sun, LogOut, Settings } from "lucide-react";
+import { Send, Sun } from "lucide-react";
 import {
   auth,
   db,
   handleFirestoreError,
   loadRemoteProactiveSettings,
   loadUserProfile,
+  loadWishlistItems,
   saveUserProfile,
   saveRemoteProactiveSettings,
+  saveWishlistItems,
 } from "./firebase";
 import {
   createUserWithEmailAndPassword,
@@ -36,8 +40,9 @@ import {
   User,
 } from "firebase/auth";
 import { collection, query, orderBy, onSnapshot, setDoc, doc, serverTimestamp } from "firebase/firestore";
-import { motion } from "motion/react";
 import { formatAuthErrorMessage, isPopupFallbackError } from "./authErrorMessage";
+import { pickChatPlaceholder } from "./i18n/chatPlaceholder";
+import { ambientPresence, resolvePresence } from "./lib/presence";
 
 const DEFAULT_PROACTIVE_SETTINGS: ProactiveSettings = {
   enabled: false,
@@ -73,7 +78,7 @@ function loadProactiveSettings(userId?: string): ProactiveSettings {
       quietHoursStart: parsed.quietHoursStart || DEFAULT_PROACTIVE_SETTINGS.quietHoursStart,
       quietHoursEnd: parsed.quietHoursEnd || DEFAULT_PROACTIVE_SETTINGS.quietHoursEnd,
       favoriteTopics: Array.isArray(parsed.favoriteTopics)
-        ? parsed.favoriteTopics.filter((topic): topic is string => typeof topic === "string").slice(0, 3)
+        ? parsed.favoriteTopics.filter((topic): topic is string => typeof topic === "string").slice(0, 5)
         : [],
     };
   } catch {
@@ -130,7 +135,9 @@ async function parseJsonResponse(response: Response) {
 export default function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
+  const [chatPlaceholder] = useState(() => pickChatPlaceholder());
   const [isTyping, setIsTyping] = useState(false);
+  const [ambient, setAmbient] = useState(() => ambientPresence());
   const [theme, setTheme] = useState<"light" | "dark">(() => loadTheme());
   const [user, setUser] = useState<User | null>(null);
   const [pendingVerificationUser, setPendingVerificationUser] = useState<User | null>(null);
@@ -140,11 +147,19 @@ export default function App() {
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const [preparingAudioId, setPreparingAudioId] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [view, setView] = useState<AppView>("chat");
   const [proactiveSettings, setProactiveSettings] = useState<ProactiveSettings>(() => loadProactiveSettings());
+  const [wishlistItems, setWishlistItems] = useState<WishlistItem[]>([]);
   const [authFeedback, setAuthFeedback] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const userId = user?.uid;
+  const presence = resolvePresence({
+    ambient,
+    preparing: Boolean(preparingAudioId),
+    thinking: isTyping,
+    speaking: Boolean(speakingMessageId),
+  });
 
   const applyAuthenticatedUser = useCallback((currentUser: User | null) => {
     if (currentUser && requiresEmailVerification(currentUser)) {
@@ -191,6 +206,11 @@ export default function App() {
     window.localStorage.setItem(THEME_STORAGE_KEY, theme);
   }, [theme]);
 
+  useEffect(() => {
+    const timer = window.setInterval(() => setAmbient(ambientPresence()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   const getJsonHeaders = useCallback(async () => {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (user) {
@@ -220,6 +240,8 @@ export default function App() {
     if (!user) {
       setUserProfile(null);
       setBilling(null);
+      setWishlistItems([]);
+      setView("chat");
       setProactiveSettings(loadProactiveSettings());
       return;
     }
@@ -231,10 +253,12 @@ export default function App() {
     Promise.all([
       loadUserProfile(user.uid),
       loadRemoteProactiveSettings(user.uid),
+      loadWishlistItems(user.uid),
       refreshBilling(),
-    ]).then(([remoteProfile, remoteSettings]) => {
+    ]).then(([remoteProfile, remoteSettings, remoteWishlist]) => {
       if (cancelled) return;
       if (remoteProfile) setUserProfile(remoteProfile);
+      setWishlistItems(remoteWishlist);
       if (remoteSettings) {
         setProactiveSettings(remoteSettings);
         localStorage.setItem(storageKey(PROACTIVE_SETTINGS_KEY, user.uid), JSON.stringify(remoteSettings));
@@ -284,6 +308,15 @@ export default function App() {
           localStorage.setItem(storageKey(PROACTIVE_SETTINGS_KEY, userId), JSON.stringify(remoteSettings));
         })
         .catch((error) => console.error("Failed to save proactive settings:", error));
+    }
+  }, [userId]);
+
+  const updateWishlistItems = useCallback((items: WishlistItem[]) => {
+    setWishlistItems(items);
+    if (userId) {
+      saveWishlistItems(userId, items)
+        .then(setWishlistItems)
+        .catch((error) => console.error("Failed to save Hina Space wishlist:", error));
     }
   }, [userId]);
 
@@ -428,6 +461,8 @@ export default function App() {
       setPendingVerificationUser(null);
       setUserProfile(null);
       setBilling(null);
+      setWishlistItems([]);
+      setView("chat");
       setAuthFeedback(null);
     } catch (error) {
       console.error("Logout failed:", error);
@@ -619,7 +654,6 @@ export default function App() {
     }
   };
 
-  const HinaHeaderIcon = theme === "dark" ? Moon : Sun;
   const publicPage = typeof window !== "undefined" ? getPublicPage(window.location.pathname) : null;
 
   if (publicPage) {
@@ -665,112 +699,94 @@ export default function App() {
 
   return (
     <div className={`flex flex-col h-screen font-sans transition-colors duration-300 ${theme} bg-[#FDFBF7] dark:bg-[#1c1224] text-[#4A4A4A] dark:text-[#e5dceb] selection:bg-[#FFD166]/30 dark:selection:bg-[#660874]/50`}>
-      <header className="flex-none border-b border-[#E8E2D6] dark:border-[#3a2347] px-4 py-3 sm:px-8 flex items-center justify-between bg-white/50 dark:bg-[#1c1224]/80 backdrop-blur-sm z-10 sticky top-0 shadow-[0_1px_2px_-1px_rgba(0,0,0,0.05)] dark:shadow-none transition-colors duration-300">
-        <div className="flex items-center gap-3">
-          <motion.div
-            animate={speakingMessageId ? { scale: [1, 1.15, 1], rotate: [-2, 2, -2] } : {}}
-            transition={speakingMessageId ? { duration: 0.6, repeat: Infinity } : {}}
-            className="w-12 h-12 rounded-full border-2 border-white dark:border-[#1c1224] shadow-sm flex items-center justify-center overflow-hidden transition-colors duration-300 bg-[#FFD166] text-white"
-            data-hina-avatar={theme === "dark" ? "moon" : "sun"}
-          >
-            <HinaHeaderIcon size={28} strokeWidth={2.5} />
-          </motion.div>
-          <div>
-            <h1 className="font-bold text-lg text-[#2D2D2D] dark:text-white leading-tight tracking-normal">Hina</h1>
-            <p className="text-xs text-[#8A817C] dark:text-[#a58ebd] font-medium flex items-center mt-0.5">
-              <span className={`w-2 h-2 rounded-full inline-block mr-1.5 ${isTyping ? "bg-[#06D6A0]" : preparingAudioId ? "bg-[#4EA8DE]" : speakingMessageId ? "bg-[#FF9F1C]" : "bg-gray-300 dark:bg-[#4b305e]"}`} />
-              {isTyping ? "Hina is thinking..." : preparingAudioId ? "Hina is preparing..." : speakingMessageId ? "Hina is speaking..." : "Online"}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleLogout}
-            className="p-2 text-[#8A817C] dark:text-[#a58ebd] hover:bg-[#F7F2E9] dark:hover:bg-[#342042] rounded-full transition-colors flex items-center justify-center font-bold"
-            title="Logout"
-          >
-            <LogOut size={20} />
-          </button>
-          <button
-            onClick={() => setTheme(theme === "light" ? "dark" : "light")}
-            className="p-2 text-[#8A817C] dark:text-[#a58ebd] hover:bg-[#F7F2E9] dark:hover:bg-[#342042] rounded-full transition-colors"
-            title="Toggle theme"
-          >
-            {theme === "light" ? <Moon size={20} /> : <Sun size={20} />}
-          </button>
-          <button
-            onClick={() => setIsSettingsOpen(true)}
-            className="p-2 text-[#8A817C] dark:text-[#a58ebd] hover:bg-[#F7F2E9] dark:hover:bg-[#342042] rounded-full transition-colors"
-            title="Settings"
-          >
-            <Settings size={20} />
-          </button>
-        </div>
-      </header>
+      <AppHeader
+        view={view}
+        theme={theme}
+        presence={presence}
+        isSpeaking={Boolean(speakingMessageId)}
+        onOpenSpace={() => setView("space")}
+        onBack={() => setView(view === "space" ? "chat" : "space")}
+        onOpenSettings={() => setIsSettingsOpen(true)}
+        onToggleTheme={() => setTheme(theme === "light" ? "dark" : "light")}
+        onLogout={handleLogout}
+      />
 
-      <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-6">
-        <div className="max-w-3xl mx-auto flex flex-col justify-end min-h-full">
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center space-x-2 bg-[#F7F2E9] dark:bg-[#342042] text-[#B5A48B] dark:text-[#d6bdec] border-[#E8E2D6] dark:border-[#4b305e] text-xs font-bold uppercase tracking-widest px-4 py-1.5 rounded-full border transition-colors duration-300">
-              <span>Your English Learning Partner</span>
+      {view !== "chat" ? (
+        <HinaSpace
+          view={view as HinaSpaceView}
+          messages={messages}
+          wishlistItems={wishlistItems}
+          onNavigate={(nextView) => setView(nextView)}
+          onWishlistItemsChange={updateWishlistItems}
+        />
+      ) : (
+        <>
+          <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-6">
+            <div className="max-w-3xl mx-auto flex flex-col justify-end min-h-full">
+              <div className="text-center mb-8">
+                <div className="inline-flex items-center justify-center space-x-2 bg-[#F7F2E9] dark:bg-[#342042] text-[#B5A48B] dark:text-[#d6bdec] border-[#E8E2D6] dark:border-[#4b305e] text-xs font-bold uppercase tracking-widest px-4 py-1.5 rounded-full border transition-colors duration-300">
+                  <span>Your English Learning Partner</span>
+                </div>
+                <p className="text-[#8A817C] dark:text-[#89739c] text-xs mt-3 opacity-60 font-medium">Hina can make mistakes. Consider verifying important information.</p>
+              </div>
+
+              <div className="flex flex-col pb-4">
+                {messages.map((msg) => (
+                  <ChatMessage
+                    key={msg.id}
+                    message={msg}
+                    isSpeaking={speakingMessageId === msg.id}
+                    onPlayAudio={() => playAudio(msg.text, msg.id)}
+                    userPhotoUrl={userProfile?.photoURL || user?.photoURL}
+                    theme={theme}
+                  />
+                ))}
+                {isTyping && (
+                  <ChatMessage
+                    message={{
+                      id: "typing",
+                      role: "model",
+                      text: "",
+                      timestamp: Date.now(),
+                      isTyping: true,
+                    }}
+                    theme={theme}
+                  />
+                )}
+                <div ref={messagesEndRef} className="h-1 py-1" />
+              </div>
             </div>
-            <p className="text-[#8A817C] dark:text-[#89739c] text-xs mt-3 opacity-60 font-medium">Hina can make mistakes. Consider verifying important information.</p>
           </div>
 
-          <div className="flex flex-col pb-4">
-            {messages.map((msg) => (
-              <ChatMessage
-                key={msg.id}
-                message={msg}
-                isSpeaking={speakingMessageId === msg.id}
-                onPlayAudio={() => playAudio(msg.text, msg.id)}
-                userPhotoUrl={userProfile?.photoURL || user?.photoURL}
-                theme={theme}
-              />
-            ))}
-            {isTyping && (
-              <ChatMessage
-                message={{
-                  id: "typing",
-                  role: "model",
-                  text: "",
-                  timestamp: Date.now(),
-                  isTyping: true,
+          <div className="flex-none bg-white dark:bg-[#1c1224] p-4 sm:p-6 border-t border-[#E8E2D6] dark:border-[#3a2347] pb-safe transition-colors duration-300">
+            <div className="max-w-3xl mx-auto relative flex items-center bg-[#F7F2E9] dark:bg-[#291a33] rounded-[28px] p-1.5 pr-1.5 ring-1 ring-[#E8E2D6] dark:ring-[#3a2347] shadow-inner focus-within:ring-2 focus-within:ring-[#B5A48B] dark:focus-within:ring-[#660874] transition-all duration-300" data-chat-composer>
+              <textarea
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSend();
+                  }
                 }}
-                theme={theme}
+                placeholder={chatPlaceholder}
+                aria-label="Message Hina"
+                className="flex-1 h-10 min-h-10 max-h-10 overflow-hidden bg-transparent border-0 resize-none py-2.5 px-4 focus:outline-none focus:ring-0 text-[15px] block leading-5 placeholder:whitespace-nowrap placeholder:text-[14px] placeholder:transition-opacity focus:placeholder:opacity-0 placeholder-[#B5A48B] dark:placeholder-[#89739c] text-[#4A4A4A] dark:text-[#e5dceb]"
+                rows={1}
+                disabled={isTyping}
               />
-            )}
-            <div ref={messagesEndRef} className="h-1 py-1" />
+              <button
+                onClick={handleSend}
+                disabled={!inputValue.trim() || isTyping}
+                className="w-10 h-10 shrink-0 ml-1.5 bg-[#FF9F1C] dark:bg-[#660874] text-white hover:scale-105 transition-transform disabled:bg-[#E8E2D6] dark:disabled:bg-[#301f3b] disabled:text-[#B5A48B] dark:disabled:text-[#6a537a] disabled:hover:scale-100 rounded-full flex items-center justify-center shadow-md disabled:shadow-none transition-colors duration-300"
+                title="Send"
+              >
+                <Send size={18} className="-ml-0.5" />
+              </button>
+            </div>
           </div>
-        </div>
-      </div>
-
-      <div className="flex-none bg-white dark:bg-[#1c1224] p-4 sm:p-6 border-t border-[#E8E2D6] dark:border-[#3a2347] pb-safe transition-colors duration-300">
-        <div className="max-w-3xl mx-auto relative flex items-center bg-[#F7F2E9] dark:bg-[#291a33] rounded-[32px] p-2 pr-2 ring-1 ring-[#E8E2D6] dark:ring-[#3a2347] shadow-inner focus-within:ring-2 focus-within:ring-[#B5A48B] dark:focus-within:ring-[#660874] transition-all duration-300">
-          <textarea
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                handleSend();
-              }
-            }}
-            placeholder="Reply to Hina in English (or Chinese if you're tired!)"
-            className="flex-1 max-h-32 min-h-[44px] bg-transparent border-0 resize-none py-3 px-4 focus:outline-none focus:ring-0 text-[15px] block leading-relaxed placeholder-[#B5A48B] dark:placeholder-[#89739c] text-[#4A4A4A] dark:text-[#e5dceb]"
-            rows={1}
-            disabled={isTyping}
-          />
-          <button
-            onClick={handleSend}
-            disabled={!inputValue.trim() || isTyping}
-            className="w-11 h-11 shrink-0 ml-2 bg-[#FF9F1C] dark:bg-[#660874] text-white hover:scale-105 transition-transform disabled:bg-[#E8E2D6] dark:disabled:bg-[#301f3b] disabled:text-[#B5A48B] dark:disabled:text-[#6a537a] disabled:hover:scale-100 rounded-full flex items-center justify-center shadow-md disabled:shadow-none transition-colors duration-300"
-            title="Send"
-          >
-            <Send size={18} className="-ml-0.5" />
-          </button>
-        </div>
-      </div>
+        </>
+      )}
 
       <SettingsModal
         isOpen={isSettingsOpen}

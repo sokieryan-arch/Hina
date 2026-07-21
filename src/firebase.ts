@@ -10,7 +10,7 @@ import {
 } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import firebaseConfig from "../firebase-applet-config.json";
-import type { ProactiveSettings, UserProfile } from "./types";
+import type { ProactiveSettings, UserProfile, WishlistItem, WishlistKind } from "./types";
 
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
@@ -119,7 +119,7 @@ function normalizeProactiveSettings(input: Partial<ProactiveSettings> | null | u
     quietHoursStart: typeof input.quietHoursStart === "string" ? input.quietHoursStart : "22:00",
     quietHoursEnd: typeof input.quietHoursEnd === "string" ? input.quietHoursEnd : "08:00",
     favoriteTopics: Array.isArray(input.favoriteTopics)
-      ? input.favoriteTopics.filter((topic): topic is string => typeof topic === "string").slice(0, 3)
+      ? input.favoriteTopics.filter((topic): topic is string => typeof topic === "string").slice(0, 5)
       : [],
   };
 }
@@ -145,6 +145,58 @@ export async function saveRemoteProactiveSettings(userId: string, settings: Proa
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, `users/${userId}/settings/proactive`);
     return normalized;
+  }
+}
+
+const WISHLIST_KINDS = new Set<WishlistKind>(["goal", "hook", "place", "note"]);
+
+function cleanWishlistItem(item: Partial<WishlistItem>): WishlistItem | null {
+  if (!item.id || typeof item.id !== "string") return null;
+  if (!item.title || typeof item.title !== "string") return null;
+  const now = Date.now();
+  const kind = item.kind && WISHLIST_KINDS.has(item.kind) ? item.kind : "goal";
+  return {
+    id: item.id.slice(0, 128),
+    kind,
+    title: item.title.trim().slice(0, 120),
+    details: typeof item.details === "string" && item.details.trim() ? item.details.trim().slice(0, 600) : null,
+    progress: typeof item.progress === "number" ? Math.min(100, Math.max(0, Math.round(item.progress))) : 0,
+    completed: item.completed === true,
+    targetDate: typeof item.targetDate === "string" && item.targetDate.trim() ? item.targetDate.trim().slice(0, 30) : null,
+    createdAt: typeof item.createdAt === "number" ? item.createdAt : now,
+    updatedAt: typeof item.updatedAt === "number" ? item.updatedAt : now,
+  };
+}
+
+function cleanWishlistItems(input: unknown): WishlistItem[] {
+  if (!Array.isArray(input)) return [];
+  return input
+    .map((item) => cleanWishlistItem(item as Partial<WishlistItem>))
+    .filter((item): item is WishlistItem => Boolean(item))
+    .slice(0, 50);
+}
+
+export async function loadWishlistItems(userId: string): Promise<WishlistItem[]> {
+  try {
+    const snapshot = await getDoc(doc(db, `users/${userId}/space/wishlist`));
+    return snapshot.exists() ? cleanWishlistItems(snapshot.data().items) : [];
+  } catch (error) {
+    handleFirestoreError(error, OperationType.GET, `users/${userId}/space/wishlist`);
+    return [];
+  }
+}
+
+export async function saveWishlistItems(userId: string, items: WishlistItem[]): Promise<WishlistItem[]> {
+  const cleaned = cleanWishlistItems(items);
+  try {
+    await setDoc(doc(db, `users/${userId}/space/wishlist`), {
+      items: cleaned,
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+    return cleaned;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `users/${userId}/space/wishlist`);
+    return cleaned;
   }
 }
 
