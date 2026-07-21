@@ -2,7 +2,6 @@ import { useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   BookOpen,
-  CalendarDays,
   Check,
   ChevronRight,
   CircleDashed,
@@ -29,30 +28,30 @@ interface HinaSpaceProps {
 const SPACE_ITEMS = [
   {
     view: "moments" as const,
-    Icon: CalendarDays,
+    emoji: "📸",
     title: "Moments",
     copy: "Tiny scenes from Hina's New York days.",
     className: "bg-[#FFF4D8] border-[#F1D89A] text-[#755315] dark:bg-[#33263e] dark:border-[#5a4669] dark:text-[#f6d98e]",
   },
   {
     view: "notes" as const,
-    Icon: NotebookPen,
+    emoji: "✍️",
     title: "Study",
-    copy: "Corrections and expressions saved from your chats.",
+    copy: "The useful bits Hina saved from your chats.",
     className: "bg-[#EAF5F2] border-[#BDDCD5] text-[#285F57] dark:bg-[#17303a] dark:border-[#2e5661] dark:text-[#a9ddd3]",
   },
   {
     view: "wishlist" as const,
-    Icon: ListChecks,
+    emoji: "🎒",
     title: "Wishlist",
     copy: "Goals, places and promises for later.",
     className: "bg-[#F1F1E5] border-[#D6D4B9] text-[#5A5A40] dark:bg-[#2c2a31] dark:border-[#504c59] dark:text-[#dad7b5]",
   },
   {
     view: "relationship" as const,
-    Icon: Heart,
+    emoji: "❤️",
     title: "Relationship",
-    copy: "A quiet record of everything between you.",
+    copy: "A quiet little record of everything between you.",
     className: "bg-[#FBEAEC] border-[#E9C5CA] text-[#82434C] dark:bg-[#3a1f35] dark:border-[#633451] dark:text-[#f1b8ca]",
   },
 ];
@@ -108,9 +107,7 @@ function SpaceHome({ onNavigate }: Pick<HinaSpaceProps, "onNavigate">) {
             className={`group min-h-44 sm:min-h-52 rounded-[24px] border p-4 sm:p-6 text-left shadow-[0_5px_18px_rgba(68,55,35,0.08)] transition-all hover:-translate-y-1 hover:shadow-[0_10px_28px_rgba(68,55,35,0.12)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF9F1C] dark:shadow-none ${item.className}`}
           >
             <span className="flex items-start justify-between gap-2">
-              <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/55 shadow-sm dark:bg-white/10" aria-hidden="true">
-                <item.Icon size={24} />
-              </span>
+              <span className="text-3xl sm:text-4xl" aria-hidden="true">{item.emoji}</span>
               <ChevronRight size={19} className="opacity-50 transition-transform group-hover:translate-x-1" />
             </span>
             <span className="mt-7 block text-lg sm:text-xl font-bold tracking-normal">{item.title}</span>
@@ -153,25 +150,99 @@ function MomentsPage() {
   );
 }
 
+type StudyCategory = "grammar" | "vocabulary" | "expression" | "culture";
+
+interface StudyNote {
+  id: string;
+  category: StudyCategory;
+  title: string;
+  body: string;
+}
+
+const NOTE_FILTERS: Array<{ value: "all" | StudyCategory; label: string }> = [
+  { value: "all", label: "All" },
+  { value: "grammar", label: "Grammar" },
+  { value: "vocabulary", label: "Vocabulary" },
+  { value: "expression", label: "Expressions" },
+  { value: "culture", label: "Culture" },
+];
+
+const NOTE_STYLES: Record<StudyCategory, string> = {
+  grammar: "border-[#F2C7A4] bg-[#FFF5EC] dark:border-[#68404d] dark:bg-[#321c2b]",
+  vocabulary: "border-[#D7D2A8] bg-[#F7F6E8] dark:border-[#55513b] dark:bg-[#2c2a27]",
+  expression: "border-[#BDDCD5] bg-[#EDF7F5] dark:border-[#2e5661] dark:bg-[#17303a]",
+  culture: "border-[#D7C8E5] bg-[#F6F0FA] dark:border-[#533d68] dark:bg-[#2e2039]",
+};
+
+function studyCategoryForMessage(message: Message): StudyCategory {
+  if (message.type === "correction" || message.tipKind === "correction") return "grammar";
+  if (message.tipKind === "culture") return "culture";
+  if (message.tipKind === "expression") return "expression";
+
+  const text = message.text.toLowerCase();
+  if (/\b(grammar|tense|punctuation|capitalization|sentence|grammatically|correct)\b/.test(text)) return "grammar";
+  if (/\b(vocab|vocabulary|word|means|meaning|slang)\b/.test(text)) return "vocabulary";
+  if (/\b(expression|phrase|idiom|say|sound|natural)\b/.test(text)) return "expression";
+  if (/\b(culture|nuance|context|polite|casual)\b/.test(text)) return "culture";
+  return message.type === "insight" ? "vocabulary" : "expression";
+}
+
+function titleForStudyNote(message: Message, category: StudyCategory) {
+  if (message.type === "correction") return "Grammar note";
+  if (category === "vocabulary") return "Vocabulary note";
+  if (category === "culture") return "Culture note";
+  return "Expression note";
+}
+
+function toStudyNote(message: Message): StudyNote | null {
+  const isStudyMessage = message.type === "correction" || message.type === "insight" || message.type === "tip";
+  if (!isStudyMessage || !message.text.trim()) return null;
+  const category = studyCategoryForMessage(message);
+  return {
+    id: message.id,
+    category,
+    title: titleForStudyNote(message, category),
+    body: message.text,
+  };
+}
+
 function NotesPage({ messages }: Pick<HinaSpaceProps, "messages">) {
-  const notes = messages.filter((message) => message.type === "correction" || message.type === "insight").slice().reverse();
+  const [filter, setFilter] = useState<"all" | StudyCategory>("all");
+  const notes = messages
+    .map(toStudyNote)
+    .filter((note): note is StudyNote => note !== null)
+    .slice()
+    .reverse();
+  const filteredNotes = filter === "all" ? notes : notes.filter((note) => note.category === filter);
 
   return (
     <PageShell>
-      <div className="mb-5">
-        <p className="text-xs font-bold uppercase tracking-widest text-[#2F5D54] dark:text-[#a9ddd3]">Useful bits</p>
-        <p className="mt-2 text-sm text-[#7C746F] dark:text-[#a995b7]">Corrections and quick insights from your recent chats collect here automatically.</p>
+      <div className="mb-5 flex max-w-full gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Study categories">
+        {NOTE_FILTERS.map((item) => (
+          <button
+            key={item.value}
+            type="button"
+            onClick={() => setFilter(item.value)}
+            aria-pressed={filter === item.value}
+            className={`shrink-0 rounded-full border px-3 py-2 text-xs font-bold transition-colors ${filter === item.value
+              ? "border-[#5A5A40] bg-[#5A5A40] text-white dark:border-[#8b66a3] dark:bg-[#48285c]"
+              : "border-[#E8E2D6] bg-white text-[#746B66] dark:border-[#3a2347] dark:bg-[#291a33] dark:text-[#bda9ca]"}`}
+          >
+            {item.label}
+          </button>
+        ))}
       </div>
-      {notes.length === 0 ? (
+      {filteredNotes.length === 0 ? (
         <EmptyState icon={<NotebookPen size={22} />} title="No notes in this pocket yet" copy="Chat with Hina and her most useful grammar fixes and expressions will appear here." />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">
-          {notes.map((note) => (
-            <article key={note.id} className={`rounded-[22px] border p-5 shadow-sm ${note.type === "correction" ? "border-[#F2C7A4] bg-[#FFF5EC] dark:border-[#68404d] dark:bg-[#321c2b]" : "border-[#BDDCD5] bg-[#EDF7F5] dark:border-[#2e5661] dark:bg-[#17303a]"}`}>
+          {filteredNotes.map((note) => (
+            <article key={note.id} className={`rounded-[22px] border p-5 shadow-sm ${NOTE_STYLES[note.category]}`}>
               <span className="text-[11px] font-bold uppercase tracking-widest text-[#7A706A] dark:text-[#b9a8c5]">
-                {note.type === "correction" ? "Correction" : "Expression"}
+                {note.category}
               </span>
-              <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-[#625B56] dark:text-[#d7cce0]">{note.text}</p>
+              <h2 className="mt-2 text-base font-bold text-[#35312F] dark:text-white tracking-normal">{note.title}</h2>
+              <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#625B56] dark:text-[#d7cce0]">{note.body}</p>
             </article>
           ))}
         </div>

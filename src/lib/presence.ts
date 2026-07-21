@@ -19,12 +19,12 @@ export interface PresenceDefinition {
 
 export const PRESENCE_DEFINITIONS: Record<PresenceStatus, PresenceDefinition> = {
   online: { label: "Online", dotClass: "bg-[#21A366]", showsIndicator: true, textClass: "text-[#8A817C] dark:text-[#a58ebd]" },
-  sleeping: { label: "Sleeping", dotClass: "bg-[#21A366]", showsIndicator: false, textClass: "text-[#8A817C] dark:text-[#a58ebd]" },
-  coffee: { label: "Making coffee", dotClass: "bg-[#21A366]", showsIndicator: false, textClass: "text-[#8A817C] dark:text-[#a58ebd]" },
-  reading: { label: "Reading", dotClass: "bg-[#21A366]", showsIndicator: false, textClass: "text-[#8A817C] dark:text-[#a58ebd]" },
-  drawing: { label: "Drawing", dotClass: "bg-[#21A366]", showsIndicator: false, textClass: "text-[#8A817C] dark:text-[#a58ebd]" },
-  walking: { label: "Walking", dotClass: "bg-[#21A366]", showsIndicator: false, textClass: "text-[#8A817C] dark:text-[#a58ebd]" },
-  daydreaming: { label: "Daydreaming", dotClass: "bg-[#21A366]", showsIndicator: false, textClass: "text-[#8A817C] dark:text-[#a58ebd]" },
+  sleeping: { label: "🌙 Sleeping", dotClass: "bg-[#21A366]", showsIndicator: false, textClass: "text-[#8A817C] dark:text-[#a58ebd]" },
+  coffee: { label: "☕ Making coffee", dotClass: "bg-[#21A366]", showsIndicator: false, textClass: "text-[#8A817C] dark:text-[#a58ebd]" },
+  reading: { label: "📚 Reading", dotClass: "bg-[#21A366]", showsIndicator: false, textClass: "text-[#8A817C] dark:text-[#a58ebd]" },
+  drawing: { label: "🎨 Drawing", dotClass: "bg-[#21A366]", showsIndicator: false, textClass: "text-[#8A817C] dark:text-[#a58ebd]" },
+  walking: { label: "🚶 Walking", dotClass: "bg-[#21A366]", showsIndicator: false, textClass: "text-[#8A817C] dark:text-[#a58ebd]" },
+  daydreaming: { label: "💭 Daydreaming", dotClass: "bg-[#21A366]", showsIndicator: false, textClass: "text-[#8A817C] dark:text-[#a58ebd]" },
   preparing: { label: "Preparing", dotClass: "bg-[#54B9E8]", showsIndicator: true, textClass: "text-[#8A817C] dark:text-[#a58ebd]" },
   thinking: { label: "Thinking", dotClass: "bg-[#2457A7]", showsIndicator: true, textClass: "text-[#8A817C] dark:text-[#a58ebd]" },
   speaking: { label: "Speaking", dotClass: "bg-[#F29A38]", showsIndicator: true, textClass: "text-[#8A817C] dark:text-[#a58ebd]" },

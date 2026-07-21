@@ -707,8 +707,6 @@ export default function App() {
         onOpenSpace={() => setView("space")}
         onBack={() => setView(view === "space" ? "chat" : "space")}
         onOpenSettings={() => setIsSettingsOpen(true)}
-        onToggleTheme={() => setTheme(theme === "light" ? "dark" : "light")}
-        onLogout={handleLogout}
       />
 
       {view !== "chat" ? (
@@ -799,6 +797,9 @@ export default function App() {
         onClearHistory={() => setMessages([greeting(Boolean(user))])}
         proactiveSettings={proactiveSettings}
         onProactiveSettingsChange={updateProactiveSettings}
+        theme={theme}
+        onThemeChange={setTheme}
+        onLogout={handleLogout}
       />
     </div>
   );

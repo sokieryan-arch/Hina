@@ -1,14 +1,14 @@
-import { ArrowLeft, LogOut, Moon, Settings, Sun } from "lucide-react";
+import { ArrowLeft, Moon, Settings, Sun } from "lucide-react";
 import { motion } from "motion/react";
 import { PRESENCE_DEFINITIONS, type PresenceStatus } from "../lib/presence";
 import type { AppView } from "../types";
 
 const VIEW_TITLES: Record<Exclude<AppView, "chat">, string> = {
-  space: "Hina's Space",
-  moments: "Hina's Moments",
-  notes: "Hina's Notes",
-  wishlist: "Hina's List",
-  relationship: "Between us",
+  space: "🪐 Hina's Space",
+  moments: "📸 Hina's Moments",
+  notes: "✍️ Hina's Study",
+  wishlist: "🎒 Hina's Wishlist",
+  relationship: "❤️ Between us",
 };
 
 interface AppHeaderProps {
@@ -19,8 +19,6 @@ interface AppHeaderProps {
   onOpenSpace: () => void;
   onBack: () => void;
   onOpenSettings: () => void;
-  onToggleTheme: () => void;
-  onLogout: () => void;
 }
 
 export function AppHeader({
@@ -31,8 +29,6 @@ export function AppHeader({
   onOpenSpace,
   onBack,
   onOpenSettings,
-  onToggleTheme,
-  onLogout,
 }: AppHeaderProps) {
   const HinaIcon = theme === "dark" ? Moon : Sun;
   const definition = PRESENCE_DEFINITIONS[presence];
@@ -78,30 +74,14 @@ export function AppHeader({
         </div>
       )}
 
-      <div className="flex items-center gap-2">
-        <button
-          onClick={onLogout}
-          className="hidden sm:flex h-10 w-10 text-[#8A817C] dark:text-[#a58ebd] hover:bg-[#F7F2E9] dark:hover:bg-[#342042] rounded-full transition-colors items-center justify-center font-bold"
-          title="Logout"
-        >
-          <LogOut size={20} />
-        </button>
-        <button
-          onClick={onToggleTheme}
-          className="h-10 w-10 text-[#8A817C] dark:text-[#a58ebd] hover:bg-[#F7F2E9] dark:hover:bg-[#342042] rounded-full transition-colors flex items-center justify-center"
-          title="Toggle theme"
-        >
-          {theme === "light" ? <Moon size={20} /> : <Sun size={20} />}
-        </button>
-        <button
-          type="button"
-          onClick={onOpenSettings}
-          className="h-10 w-10 shrink-0 rounded-full text-[#8A817C] dark:text-[#a58ebd] hover:bg-[#F7F2E9] dark:hover:bg-[#342042] flex items-center justify-center"
-          title="Settings"
-        >
-          <Settings size={21} />
-        </button>
-      </div>
+      <button
+        type="button"
+        onClick={onOpenSettings}
+        className="h-10 w-10 shrink-0 rounded-full text-[#8A817C] dark:text-[#a58ebd] hover:bg-[#F7F2E9] dark:hover:bg-[#342042] flex items-center justify-center"
+        title="Settings"
+      >
+        <Settings size={21} />
+      </button>
     </header>
   );
 }

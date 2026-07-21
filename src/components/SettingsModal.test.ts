@@ -8,6 +8,7 @@ import type { BillingSummary, ProactiveSettings, UserProfile } from "../types";
 const user = {
   uid: "user-1",
   displayName: "Sokie",
+  email: "sokie@example.com",
   photoURL: null,
 } as any;
 
@@ -45,22 +46,32 @@ function renderSettings() {
     onClearHistory: () => {},
     proactiveSettings,
     onProactiveSettingsChange: () => {},
+    theme: "light",
+    onThemeChange: () => {},
+    onLogout: () => {},
   }));
 }
 
-test("settings modal renders profile upload controls and Pro usage", () => {
+test("settings modal renders avatar actions, appearance, account, and Pro usage", () => {
   const markup = renderSettings();
 
   assert.match(markup, /Display Name/);
-  assert.match(markup, /Upload Avatar/);
-  assert.match(markup, /JPG, PNG, WebP, GIF under 10MB/);
+  assert.match(markup, /Avatar actions/);
+  assert.doesNotMatch(markup, /Upload Avatar/);
+  assert.doesNotMatch(markup, /JPG, PNG, WebP, GIF under 10MB/);
   assert.match(markup, /Free Plan/);
   assert.match(markup, /4\/30 chats used today/);
   assert.match(markup, /Upgrade/);
+  assert.match(markup, /Appearance/);
+  assert.match(markup, /Light/);
+  assert.match(markup, /Dark/);
   assert.match(markup, /Favorite topics/);
   assert.match(markup, /2\/5/);
   assert.match(markup, /Daily life/);
   assert.match(markup, /Films &amp; TV/);
+  assert.match(markup, /Account/);
+  assert.match(markup, /sokie@example\.com/);
+  assert.match(markup, /Log out/);
 });
 
 test("settings modal shows international support status without mainland QR methods", () => {
