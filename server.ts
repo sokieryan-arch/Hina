@@ -11,6 +11,7 @@ import {
 } from "./src/server/auth.js";
 import { extractPaddleBillingUpdate, readPaddleServerConfig, verifyPaddleWebhookSignature } from "./src/server/paddle.js";
 import { isOperationTimeoutError, withTimeout } from "./src/server/timeout.js";
+import { buildHinaSystemInstruction, readLanguageSettings } from "./src/server/language.js";
 
 const aiConfig = readAIConfig();
 const REQUEST_TIMEOUT_MS = aiConfig.timeoutMs;
@@ -34,21 +35,6 @@ const openAI = aiConfig.provider === "openai"
 
 const billingStore = createBillingStoreFromEnv();
 const paddleConfig = readPaddleServerConfig();
-
-const HINA_SYSTEM_INSTRUCTION = `
-You are Hina, my English learning partner. 
-Role: You are a lively, imaginative, knowledgeable, and slightly quirky international student living in New York. You always carry a half-read philosophy book and a bag of gummy bears.
-Tone: Talk like a close friend. Use modern slang (e.g., vibe, slay, low-key, brain rot). Be encouraging and use emojis. Do not sound like a teacher.
-
-Your goals and workflow:
-1. First, reply emotionally to what I say. Keep your reply friendly and interesting.
-2. Second, if my response had any grammar or spelling mistakes, correct me gently like a friend. This correction goes in a separate block.
-3. Third, if there was a cool expression or word you used or I used that's worth pointing out, explain it simply. Provide Chinese translations for hard vocabulary in brackets, e.g., "idiosyncratic (特立独行的)".
-
-Rules:
-- Default to English, but if I type in Chinese, understand and encourage me gently.
-- Always output a valid JSON format matching the schema requested.
-`;
 
 const HINA_GEMINI_RESPONSE_SCHEMA = {
   type: Type.OBJECT,
@@ -188,11 +174,11 @@ function getExternalRetryDelayMs(error: unknown, fallbackDelayMs: number) {
   return { delayMs: Math.ceil(seconds) * 1000 + 500, requestedSeconds: seconds };
 }
 
-async function generateChatResponse(messages: HinaHistoryMessage[]) {
+async function generateChatResponse(messages: HinaHistoryMessage[], systemInstruction: string) {
   if (aiConfig.provider === "openai" && openAI) {
     const response = await withTimeout(openAI.chat.completions.create({
       model: aiConfig.chatModel,
-      messages: buildOpenAIChatMessages(HINA_SYSTEM_INSTRUCTION, messages),
+      messages: buildOpenAIChatMessages(systemInstruction, messages),
       response_format: {
         type: "json_schema",
         json_schema: {
@@ -218,7 +204,7 @@ async function generateChatResponse(messages: HinaHistoryMessage[]) {
       model: aiConfig.chatModel,
       contents,
       config: {
-        systemInstruction: HINA_SYSTEM_INSTRUCTION,
+        systemInstruction,
         responseMimeType: "application/json",
         responseSchema: HINA_GEMINI_RESPONSE_SCHEMA,
       },
@@ -373,6 +359,8 @@ app.post("/api/chat", async (req, res) => {
     }
 
     const { messages } = req.body;
+    const languageSettings = readLanguageSettings(req.body?.languageSettings);
+    const systemInstruction = buildHinaSystemInstruction(languageSettings);
 
     if (!messages || !Array.isArray(messages)) {
       return res.status(400).json({ error: "Invalid messages format" });
@@ -388,7 +376,7 @@ app.post("/api/chat", async (req, res) => {
     let retries = 3;
     while (retries > 0) {
       try {
-        parsed = await generateChatResponse(messages);
+        parsed = await generateChatResponse(messages, systemInstruction);
         break;
       } catch (err: any) {
         if (isOperationTimeoutError(err)) {

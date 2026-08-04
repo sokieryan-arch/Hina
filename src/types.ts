@@ -19,6 +19,13 @@ export interface ProactiveSettings {
   favoriteTopics: string[];
 }
 
+export type LanguageCode = "en" | "zh-CN" | "ja" | "ko" | "es" | "fr" | "de";
+
+export interface LanguageSettings {
+  targetLanguage: LanguageCode;
+  nativeLanguage: LanguageCode;
+}
+
 export interface UserProfile {
   displayName: string;
   photoURL: string | null;

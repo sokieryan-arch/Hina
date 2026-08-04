@@ -10,7 +10,8 @@ import {
 } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import firebaseConfig from "../firebase-applet-config.json";
-import type { ProactiveSettings, UserProfile, WishlistItem, WishlistKind } from "./types";
+import type { LanguageSettings, ProactiveSettings, UserProfile, WishlistItem, WishlistKind } from "./types";
+import { normalizeLanguageSettings } from "./i18n/languages";
 
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
@@ -144,6 +145,32 @@ export async function saveRemoteProactiveSettings(userId: string, settings: Proa
     return normalized;
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, `users/${userId}/settings/proactive`);
+    return normalized;
+  }
+}
+
+export async function loadRemoteLanguageSettings(userId: string): Promise<LanguageSettings | null> {
+  try {
+    const snapshot = await getDoc(doc(db, `users/${userId}/settings/language`));
+    return snapshot.exists()
+      ? normalizeLanguageSettings(snapshot.data() as Partial<LanguageSettings>)
+      : null;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.GET, `users/${userId}/settings/language`);
+    return null;
+  }
+}
+
+export async function saveRemoteLanguageSettings(userId: string, settings: LanguageSettings): Promise<LanguageSettings> {
+  const normalized = normalizeLanguageSettings(settings);
+  try {
+    await setDoc(doc(db, `users/${userId}/settings/language`), {
+      ...normalized,
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+    return normalized;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `users/${userId}/settings/language`);
     return normalized;
   }
 }

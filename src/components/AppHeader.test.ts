@@ -13,6 +13,7 @@ test("app header shows ambient presence and Hina Space entry", () => {
     onOpenSpace: () => {},
     onBack: () => {},
     onOpenSettings: () => {},
+    displayLanguage: "en",
   }));
 
   assert.match(markup, /Open Hina&#x27;s Space/);
@@ -30,8 +31,25 @@ test("app header renders a back title for Space views", () => {
     onOpenSpace: () => {},
     onBack: () => {},
     onOpenSettings: () => {},
+    displayLanguage: "en",
   }));
 
   assert.match(markup, /🎒 Hina&#x27;s Wishlist/);
   assert.match(markup, /Back/);
+});
+
+test("app header follows the target language", () => {
+  const markup = renderToStaticMarkup(React.createElement(AppHeader, {
+    view: "notes",
+    theme: "light",
+    presence: "online",
+    isSpeaking: false,
+    onOpenSpace: () => {},
+    onBack: () => {},
+    onOpenSettings: () => {},
+    displayLanguage: "zh-CN",
+  }));
+
+  assert.match(markup, /Hina 的学习卡片/);
+  assert.match(markup, /返回/);
 });

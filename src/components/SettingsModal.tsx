@@ -4,13 +4,17 @@ import { collection, deleteDoc, doc, getDocs } from "firebase/firestore";
 import { getDownloadURL, ref as storageRef, uploadBytes } from "firebase/storage";
 import { AnimatePresence, motion } from "motion/react";
 import {
+  ArrowLeft,
   Bell,
   Camera,
   CheckCircle2,
+  Check,
+  ChevronRight,
   Clock,
   Coffee,
   Crown,
   Eye,
+  Languages,
   LogOut,
   Moon,
   Plus,
@@ -25,7 +29,9 @@ import {
 import { nanoid } from "nanoid";
 import { db, saveUserProfile, storage } from "../firebase";
 import { openHinaProCheckout } from "../paddleCheckout";
-import type { BillingSummary, ProactiveSettings, UserProfile } from "../types";
+import type { BillingSummary, LanguageSettings, ProactiveSettings, UserProfile } from "../types";
+import { LANGUAGE_OPTIONS, languageSummary } from "../i18n/languages";
+import { uiText } from "../i18n/ui";
 import { avatarExtension, validateAvatarFile } from "./avatarValidation";
 
 interface SettingsModalProps {
@@ -39,6 +45,8 @@ interface SettingsModalProps {
   onClearHistory: () => void;
   proactiveSettings: ProactiveSettings;
   onProactiveSettingsChange: (settings: ProactiveSettings) => void;
+  languageSettings: LanguageSettings;
+  onLanguageSettingsChange: (settings: LanguageSettings) => void;
   theme: "light" | "dark";
   onThemeChange: (theme: "light" | "dark") => void;
   onLogout: () => Promise<void> | void;
@@ -91,6 +99,8 @@ export function SettingsModal({
   onClearHistory,
   proactiveSettings,
   onProactiveSettingsChange,
+  languageSettings,
+  onLanguageSettingsChange,
   theme,
   onThemeChange,
   onLogout,
@@ -105,7 +115,9 @@ export function SettingsModal({
   const [profileMessage, setProfileMessage] = useState<string | null>(null);
   const [billingMessage, setBillingMessage] = useState<string | null>(null);
   const [billingBusy, setBillingBusy] = useState(false);
+  const [settingsPane, setSettingsPane] = useState<"main" | "language">("main");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -117,7 +129,17 @@ export function SettingsModal({
     setTopicMessage(null);
     setProfileMessage(null);
     setBillingMessage(null);
+    setSettingsPane("main");
   }, [isOpen, proactiveSettings.favoriteTopics, profile, user]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (modalRef.current) modalRef.current.scrollTop = 0;
+    const frame = window.requestAnimationFrame(() => {
+      if (modalRef.current) modalRef.current.scrollTop = 0;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [isOpen, settingsPane]);
 
   const chooseAvatar = async (file: File | undefined) => {
     if (!file) return;
@@ -269,6 +291,8 @@ export function SettingsModal({
   const percent = usagePercent(billing);
   const isPro = billing?.isPro === true;
   const currentPhotoUrl = photoUrlFrom(user, profile);
+  const displayLanguage = languageSettings.targetLanguage;
+  const t = (key: Parameters<typeof uiText>[1]) => uiText(displayLanguage, key);
 
   return (
     <AnimatePresence>
@@ -285,20 +309,84 @@ export function SettingsModal({
             initial={{ opacity: 0, scale: 0.95, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
-            className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[92%] max-w-lg max-h-[88vh] bg-white dark:bg-[#1c1224] rounded-3xl shadow-xl z-50 overflow-y-auto border border-[#E8E2D6] dark:border-[#3a2347]"
+            className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex w-[92%] max-w-lg max-h-[88vh] flex-col overflow-hidden rounded-3xl border border-[#E8E2D6] bg-white shadow-xl z-50 dark:border-[#3a2347] dark:bg-[#1c1224]"
           >
-            <div className="flex items-center justify-between p-5 border-b border-[#E8E2D6] dark:border-[#3a2347] bg-[#FDFBF7] dark:bg-[#291a33]">
-              <h2 className="text-lg font-bold text-[#2D2D2D] dark:text-white flex items-center gap-2">
-                <Settings size={20} className="text-[#FF9F1C]" />
-                Settings
-              </h2>
-              <button onClick={onClose} className="p-1.5 text-[#8A817C] hover:bg-[#E8E2D6] dark:hover:bg-[#3a2347] rounded-full" title="Close settings">
+            <div className="z-10 flex shrink-0 items-center justify-between p-5 border-b border-[#E8E2D6] dark:border-[#3a2347] bg-[#FDFBF7] dark:bg-[#291a33]">
+              <div className="flex min-w-0 items-center gap-2">
+                {settingsPane === "language" ? (
+                  <button
+                    type="button"
+                    onClick={() => setSettingsPane("main")}
+                    className="-ml-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#746B66] transition-colors hover:bg-[#EEE8DE] dark:text-[#c7b4d3] dark:hover:bg-[#3a2347]"
+                    title={t("backToSettings")}
+                  >
+                    <ArrowLeft size={19} />
+                  </button>
+                ) : <Settings size={20} className="shrink-0 text-[#FF9F1C]" />}
+                <h2 className="truncate text-lg font-bold text-[#2D2D2D] dark:text-white">
+                  {settingsPane === "language" ? t("language") : t("settings")}
+                </h2>
+              </div>
+              <button onClick={onClose} className="p-1.5 text-[#8A817C] hover:bg-[#E8E2D6] dark:hover:bg-[#3a2347] rounded-full" title={t("closeSettings")}>
                 <X size={18} />
               </button>
             </div>
 
-            <div className="p-6 space-y-6">
-              {user ? (
+            <div ref={modalRef} style={{ overflowAnchor: "none" }} className="min-h-0 flex-1 overflow-y-auto p-6 space-y-6">
+              {settingsPane === "language" ? (
+                <div className="space-y-7" data-language-settings-pane>
+                  <div>
+                    <p className="text-sm leading-6 text-[#746B66] dark:text-[#bba9c8]">{t("languageHint")}</p>
+                  </div>
+
+                  {([
+                    {
+                      key: "targetLanguage" as const,
+                      title: t("targetLanguage"),
+                      copy: t("targetHint"),
+                    },
+                    {
+                      key: "nativeLanguage" as const,
+                      title: t("nativeLanguage"),
+                      copy: t("nativeHint"),
+                    },
+                  ]).map((group) => (
+                    <section key={group.key} className="space-y-3">
+                      <div>
+                        <h3 className="text-sm font-bold text-[#35312F] dark:text-white">{group.title}</h3>
+                        <p className="mt-1 text-xs leading-5 text-[#8A817C] dark:text-[#a995b7]">{group.copy}</p>
+                      </div>
+                      <div className="overflow-hidden rounded-2xl border border-[#E6DFD3] bg-[#FBF9F5] dark:border-[#45344f] dark:bg-[#25172e]">
+                        {LANGUAGE_OPTIONS.map((option, index) => {
+                          const selected = languageSettings[group.key] === option.code;
+                          return (
+                            <button
+                              key={option.code}
+                              type="button"
+                              onClick={() => onLanguageSettingsChange({
+                                ...languageSettings,
+                                [group.key]: option.code,
+                              })}
+                              aria-pressed={selected}
+                              className={`flex min-h-13 w-full items-center justify-between gap-4 px-4 py-3 text-left transition-colors ${index > 0 ? "border-t border-[#ECE6DC] dark:border-[#3b2b46]" : ""} ${selected ? "bg-white dark:bg-[#342042]" : "hover:bg-white/70 dark:hover:bg-[#2d1d38]"}`}
+                            >
+                              <span className="min-w-0">
+                                <span className={`block text-sm font-bold ${selected ? "text-[#5A5A40] dark:text-[#f0d6ff]" : "text-[#4E4844] dark:text-[#d9cde1]"}`}>{option.nativeLabel}</span>
+                                {option.nativeLabel !== option.englishLabel && (
+                                  <span className="mt-0.5 block text-[11px] text-[#9B928C] dark:text-[#8f7b9d]">{option.englishLabel}</span>
+                                )}
+                              </span>
+                              <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${selected ? "bg-[#FFD166] text-[#59450F] dark:bg-[#7d4d98] dark:text-white" : "border border-[#D9D1C5] text-transparent dark:border-[#594564]"}`}>
+                                <Check size={14} strokeWidth={3} />
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  ))}
+                </div>
+              ) : user ? (
                 <>
                   <section className="space-y-4">
                     <div className="flex items-start gap-4">
@@ -432,7 +520,7 @@ export function SettingsModal({
 
                   <section className="border-t border-[#E8E2D6] dark:border-[#3a2347] pt-6 space-y-3">
                     <div>
-                      <h3 className="text-sm font-bold text-[#4A4A4A] dark:text-[#e5dceb]">Appearance</h3>
+                      <h3 className="text-sm font-bold text-[#4A4A4A] dark:text-[#e5dceb]">{t("appearance")}</h3>
                       <p className="mt-1 text-xs text-[#8A817C] dark:text-[#a58ebd]">Hina wears the sun by day and the moon at night.</p>
                     </div>
                     <div className="grid grid-cols-2 rounded-2xl bg-[#F0ECE3] dark:bg-[#2b1c35] p-1">
@@ -443,7 +531,7 @@ export function SettingsModal({
                         className={`flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-bold ${theme === "light" ? "bg-white text-[#6D5520] shadow-sm" : "text-[#8A817C] dark:text-[#a58ebd]"}`}
                       >
                         <Sun size={17} />
-                        Light
+                        {t("light")}
                       </button>
                       <button
                         type="button"
@@ -452,9 +540,29 @@ export function SettingsModal({
                         className={`flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-bold ${theme === "dark" ? "bg-[#48285c] text-white shadow-sm" : "text-[#8A817C]"}`}
                       >
                         <Moon size={17} />
-                        Dark
+                        {t("dark")}
                       </button>
                     </div>
+                  </section>
+
+                  <section className="border-t border-[#E8E2D6] dark:border-[#3a2347] pt-6">
+                    <button
+                      type="button"
+                    onClick={(event) => {
+                      event.currentTarget.blur();
+                      if (modalRef.current) modalRef.current.scrollTop = 0;
+                      setSettingsPane("language");
+                    }}
+                      className="group flex w-full items-center gap-3 rounded-2xl px-1 py-2 text-left outline-none transition-colors hover:bg-[#FBF8F2] focus-visible:ring-2 focus-visible:ring-[#FF9F1C] dark:hover:bg-[#291a33]"
+                      aria-label={t("language")}
+                    >
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#EEF5F2] text-[#2F6D62] dark:bg-[#17303a] dark:text-[#a9ddd3]">
+                        <Languages size={19} />
+                      </span>
+                      <span className="min-w-0 flex-1 text-sm font-bold text-[#4A4A4A] dark:text-[#e5dceb]">{t("language")}</span>
+                      <span className="max-w-[52%] truncate text-right text-xs font-medium text-[#A49B94] dark:text-[#8f7b9d]">{languageSummary(languageSettings)}</span>
+                      <ChevronRight size={18} className="shrink-0 text-[#B7AEA7] transition-transform group-hover:translate-x-0.5 dark:text-[#796887]" />
+                    </button>
                   </section>
 
                   <section className="overflow-hidden rounded-2xl border border-[#F2D7B6] dark:border-[#5a3652] bg-[#FFF8EC] dark:bg-[#261829]">
@@ -634,7 +742,7 @@ export function SettingsModal({
 
                   <section className="border-t border-[#E8E2D6] dark:border-[#3a2347] pt-6 space-y-3">
                     <div>
-                      <h3 className="text-sm font-bold text-[#4A4A4A] dark:text-[#e5dceb]">Account</h3>
+                      <h3 className="text-sm font-bold text-[#4A4A4A] dark:text-[#e5dceb]">{t("account")}</h3>
                       <p className="mt-1 text-xs text-[#8A817C] dark:text-[#a58ebd]">{user.email || user.phoneNumber || "Hina friend"}</p>
                     </div>
                     <button
@@ -643,7 +751,7 @@ export function SettingsModal({
                       className="w-full flex items-center justify-center gap-2 text-sm text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 p-3 rounded-2xl font-medium border border-red-100 dark:border-red-900/30 disabled:opacity-50"
                     >
                       <Trash2 size={16} />
-                      Clear Cloud History
+                      {t("clearHistory")}
                     </button>
                     <button
                       type="button"
@@ -654,7 +762,7 @@ export function SettingsModal({
                       className="w-full flex items-center justify-center gap-2 text-sm text-[#5E5753] dark:text-[#d8cadf] hover:bg-[#F2EEE7] dark:hover:bg-[#342042] p-3 rounded-2xl font-medium border border-[#DED8CC] dark:border-[#483651]"
                     >
                       <LogOut size={16} />
-                      Log out
+                      {t("logout")}
                     </button>
                   </section>
                 </>

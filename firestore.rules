@@ -86,6 +86,16 @@ service cloud.firestore {
         && data.updatedAt == request.time;
     }
 
+    function isValidLanguageSettings(data) {
+      return data.keys().hasAll(['targetLanguage', 'nativeLanguage', 'updatedAt'])
+        && data.keys().hasOnly(['targetLanguage', 'nativeLanguage', 'updatedAt'])
+        && data.targetLanguage is string
+        && data.targetLanguage.matches('^(en|zh-CN|ja|ko|es|fr|de)$')
+        && data.nativeLanguage is string
+        && data.nativeLanguage.matches('^(en|zh-CN|ja|ko|es|fr|de)$')
+        && data.updatedAt == request.time;
+    }
+
     match /users/{userId} {
       match /public/profile {
         // Only owner can read, but you can change it to public if needed
@@ -156,6 +166,16 @@ service cloud.firestore {
           && request.auth.token.email_verified == true
           && isValidId(userId)
           && isValidProactiveSettings(incoming());
+      }
+
+      match /settings/language {
+        allow get: if isSignedIn() && request.auth.uid == userId && isValidId(userId);
+
+        allow create, update: if isSignedIn()
+          && request.auth.uid == userId
+          && request.auth.token.email_verified == true
+          && isValidId(userId)
+          && isValidLanguageSettings(incoming());
       }
 
       match /space/wishlist {

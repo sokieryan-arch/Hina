@@ -16,3 +16,11 @@ test("Firestore rules allow five proactive topics and owner wishlist Space data"
   assert.match(source, /match \/space\/wishlist/);
   assert.match(source, /isValidWishlist\(incoming\(\)\)/);
 });
+
+test("Firestore rules validate owner-only language settings", () => {
+  const source = readFileSync(new URL("../../firestore.rules", import.meta.url), "utf8");
+
+  assert.match(source, /match \/settings\/language/);
+  assert.match(source, /isValidLanguageSettings\(incoming\(\)\)/);
+  assert.match(source, /\^\(en\|zh-CN\|ja\|ko\|es\|fr\|de\)\$/);
+});

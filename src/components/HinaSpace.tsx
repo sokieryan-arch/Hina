@@ -15,7 +15,8 @@ import {
   X,
 } from "lucide-react";
 import { nanoid } from "nanoid";
-import type { HinaSpaceView, Message, WishlistItem, WishlistKind } from "../types";
+import type { HinaSpaceView, LanguageCode, Message, WishlistItem, WishlistKind } from "../types";
+import { uiText } from "../i18n/ui";
 
 interface HinaSpaceProps {
   view: HinaSpaceView;
@@ -23,38 +24,41 @@ interface HinaSpaceProps {
   wishlistItems: WishlistItem[];
   onNavigate: (view: HinaSpaceView) => void;
   onWishlistItemsChange: (items: WishlistItem[]) => void;
+  displayLanguage: LanguageCode;
 }
 
-const SPACE_ITEMS = [
+function spaceItems(displayLanguage: LanguageCode) {
+  return [
   {
     view: "moments" as const,
     emoji: "📸",
-    title: "Moments",
-    copy: "Tiny scenes from Hina's New York days.",
+    title: uiText(displayLanguage, "momentsTitle"),
+    copy: uiText(displayLanguage, "momentsCopy"),
     className: "bg-[#FFF4D8] border-[#F1D89A] text-[#755315] dark:bg-[#33263e] dark:border-[#5a4669] dark:text-[#f6d98e]",
   },
   {
     view: "notes" as const,
     emoji: "✍️",
-    title: "Study",
-    copy: "The useful bits Hina saved from your chats.",
+    title: uiText(displayLanguage, "studyTitle"),
+    copy: uiText(displayLanguage, "studyCopy"),
     className: "bg-[#EAF5F2] border-[#BDDCD5] text-[#285F57] dark:bg-[#17303a] dark:border-[#2e5661] dark:text-[#a9ddd3]",
   },
   {
     view: "wishlist" as const,
     emoji: "🎒",
-    title: "Wishlist",
-    copy: "Goals, places and promises for later.",
+    title: uiText(displayLanguage, "wishlistTitle"),
+    copy: uiText(displayLanguage, "wishlistCopy"),
     className: "bg-[#F1F1E5] border-[#D6D4B9] text-[#5A5A40] dark:bg-[#2c2a31] dark:border-[#504c59] dark:text-[#dad7b5]",
   },
   {
     view: "relationship" as const,
     emoji: "❤️",
-    title: "Relationship",
-    copy: "A quiet little record of everything between you.",
+    title: uiText(displayLanguage, "relationshipTitle"),
+    copy: uiText(displayLanguage, "relationshipCopy"),
     className: "bg-[#FBEAEC] border-[#E9C5CA] text-[#82434C] dark:bg-[#3a1f35] dark:border-[#633451] dark:text-[#f1b8ca]",
   },
-];
+  ];
+}
 
 const MOMENTS = [
   {
@@ -74,6 +78,39 @@ const MOMENTS = [
   },
 ];
 
+const TRANSLATED_MOMENTS: Partial<Record<LanguageCode, typeof MOMENTS>> = {
+  "zh-CN": [
+    { id: "central-park-book", title: "中央公园的页边笔记", body: "Hina 下午假装在读哲学书，结果认真划线的却是零食小票。学术氛围非常浓厚。" },
+    { id: "subway-lizard", title: "地铁支线任务", body: "车上有人带着一只穿毛衣的小蜥蜴。Hina 决定把纽约理解成一场带自动门的词汇测试。" },
+    { id: "coffee-window", title: "窗边咖啡", body: "Hina 找到一家会用形容词记住熟客的小咖啡馆。她现在是“那个软糖女孩”。" },
+  ],
+  ja: [
+    { id: "central-park-book", title: "セントラルパークの余白メモ", body: "Hinaは午後ずっと哲学書を読むふりをして、なぜかお菓子のレシートに線を引いていた。とてもアカデミック。" },
+    { id: "subway-lizard", title: "地下鉄のサイドクエスト", body: "車内にセーターを着た小さなトカゲがいた。ニューヨークはドア付きの単語テストだとHinaは思っている。" },
+    { id: "coffee-window", title: "窓辺のコーヒー", body: "常連客を形容詞で覚える小さなカフェを見つけた。Hinaは今や「グミの子」らしい。" },
+  ],
+  ko: [
+    { id: "central-park-book", title: "센트럴 파크의 여백 메모", body: "Hina는 오후 내내 철학책을 읽는 척하다가 간식 영수증에 밑줄을 그었다. 아주 학구적이다." },
+    { id: "subway-lizard", title: "지하철 사이드 퀘스트", body: "스웨터를 입은 작은 도마뱀을 데리고 탄 사람이 있었다. Hina는 뉴욕이 문이 달린 어휘 시험이라고 결론 내렸다." },
+    { id: "coffee-window", title: "창가의 커피", body: "단골을 형용사로 기억하는 작은 카페를 찾았다. Hina는 이제 '젤리 소녀'다." },
+  ],
+  es: [
+    { id: "central-park-book", title: "Nota al margen en Central Park", body: "Hina pasó la tarde fingiendo leer filosofía y terminó subrayando el recibo de sus dulces. Muy académico." },
+    { id: "subway-lizard", title: "Misión secundaria en el metro", body: "Alguien llevaba una lagartija diminuta con suéter. Hina decidió que Nueva York es una prueba de vocabulario con puertas." },
+    { id: "coffee-window", title: "Café junto a la ventana", body: "Hina encontró una cafetería donde recuerdan a los clientes por adjetivos. Ahora es 'la chica de las gominolas'." },
+  ],
+  fr: [
+    { id: "central-park-book", title: "Note en marge à Central Park", body: "Hina a passé l'après-midi à faire semblant de lire de la philosophie avant de souligner son ticket de bonbons. Très académique." },
+    { id: "subway-lizard", title: "Quête secondaire dans le métro", body: "Quelqu'un avait un minuscule lézard en pull. Hina a décidé que New York était un test de vocabulaire avec des portes." },
+    { id: "coffee-window", title: "Café près de la fenêtre", body: "Hina a trouvé un café où l'on retient les habitués par des adjectifs. Elle est désormais « la fille aux bonbons »." },
+  ],
+  de: [
+    { id: "central-park-book", title: "Randnotiz im Central Park", body: "Hina tat den ganzen Nachmittag so, als würde sie Philosophie lesen, und unterstrich dann den Kassenbon ihrer Süßigkeiten. Sehr akademisch." },
+    { id: "subway-lizard", title: "Nebenquest in der U-Bahn", body: "Jemand hatte eine winzige Eidechse im Pullover dabei. Für Hina ist New York jetzt ein Vokabeltest mit Türen." },
+    { id: "coffee-window", title: "Kaffee am Fenster", body: "Hina fand ein Café, das sich Stammgäste mit Adjektiven merkt. Sie ist jetzt „das Gummibärchen-Mädchen“." },
+  ],
+};
+
 function PageShell({ children, centered = false }: { children: ReactNode; centered?: boolean }) {
   return (
     <main className={`flex-1 overflow-y-auto bg-[#FDFBF7] dark:bg-[#1c1224] px-4 py-6 sm:px-7 sm:py-8 ${centered ? "flex flex-col" : ""}`}>
@@ -92,11 +129,11 @@ function EmptyState({ icon, title, copy }: { icon: ReactNode; title: string; cop
   );
 }
 
-function SpaceHome({ onNavigate }: Pick<HinaSpaceProps, "onNavigate">) {
+function SpaceHome({ onNavigate, displayLanguage }: Pick<HinaSpaceProps, "onNavigate" | "displayLanguage">) {
   return (
     <PageShell centered>
       <div className="grid grid-cols-2 gap-4 sm:gap-5" data-space-grid>
-        {SPACE_ITEMS.map((item, index) => (
+        {spaceItems(displayLanguage).map((item, index) => (
           <motion.button
             key={item.view}
             type="button"
@@ -119,18 +156,19 @@ function SpaceHome({ onNavigate }: Pick<HinaSpaceProps, "onNavigate">) {
   );
 }
 
-function MomentsPage() {
+function MomentsPage({ displayLanguage }: Pick<HinaSpaceProps, "displayLanguage">) {
+  const moments = TRANSLATED_MOMENTS[displayLanguage] || MOMENTS;
   return (
     <PageShell>
       <div className="mb-7 flex items-end justify-between gap-4">
         <div>
-          <p className="text-xs font-bold uppercase tracking-widest text-[#B0792C] dark:text-[#d6bdec]">From Hina's side of the city</p>
-          <p className="mt-2 text-sm text-[#7C746F] dark:text-[#a995b7]">Small scenes to keep the app feeling alive between chats.</p>
+          <p className="text-xs font-bold uppercase tracking-widest text-[#B0792C] dark:text-[#d6bdec]">{uiText(displayLanguage, "momentsEyebrow")}</p>
+          <p className="mt-2 text-sm text-[#7C746F] dark:text-[#a995b7]">{uiText(displayLanguage, "momentsIntro")}</p>
         </div>
         <Sparkles size={22} className="text-[#E0A835]" />
       </div>
       <div className="relative space-y-5 before:absolute before:left-[19px] before:top-5 before:bottom-5 before:w-px before:bg-[#E8E2D6] dark:before:bg-[#3a2347]">
-        {MOMENTS.map((moment, index) => (
+        {moments.map((moment, index) => (
           <motion.article
             key={moment.id}
             initial={{ opacity: 0, x: -8 }}
@@ -159,13 +197,15 @@ interface StudyNote {
   body: string;
 }
 
-const NOTE_FILTERS: Array<{ value: "all" | StudyCategory; label: string }> = [
-  { value: "all", label: "All" },
-  { value: "grammar", label: "Grammar" },
-  { value: "vocabulary", label: "Vocabulary" },
-  { value: "expression", label: "Expressions" },
-  { value: "culture", label: "Culture" },
-];
+function noteFilters(displayLanguage: LanguageCode): Array<{ value: "all" | StudyCategory; label: string }> {
+  return [
+    { value: "all", label: uiText(displayLanguage, "all") },
+    { value: "grammar", label: uiText(displayLanguage, "grammar") },
+    { value: "vocabulary", label: uiText(displayLanguage, "vocabulary") },
+    { value: "expression", label: uiText(displayLanguage, "expressions") },
+    { value: "culture", label: uiText(displayLanguage, "culture") },
+  ];
+}
 
 const NOTE_STYLES: Record<StudyCategory, string> = {
   grammar: "border-[#F2C7A4] bg-[#FFF5EC] dark:border-[#68404d] dark:bg-[#321c2b]",
@@ -187,29 +227,29 @@ function studyCategoryForMessage(message: Message): StudyCategory {
   return message.type === "insight" ? "vocabulary" : "expression";
 }
 
-function titleForStudyNote(message: Message, category: StudyCategory) {
-  if (message.type === "correction") return "Grammar note";
-  if (category === "vocabulary") return "Vocabulary note";
-  if (category === "culture") return "Culture note";
-  return "Expression note";
+function titleForStudyNote(message: Message, category: StudyCategory, displayLanguage: LanguageCode) {
+  if (message.type === "correction") return uiText(displayLanguage, "grammar");
+  if (category === "vocabulary") return uiText(displayLanguage, "vocabulary");
+  if (category === "culture") return uiText(displayLanguage, "culture");
+  return uiText(displayLanguage, "expressions");
 }
 
-function toStudyNote(message: Message): StudyNote | null {
+function toStudyNote(message: Message, displayLanguage: LanguageCode): StudyNote | null {
   const isStudyMessage = message.type === "correction" || message.type === "insight" || message.type === "tip";
   if (!isStudyMessage || !message.text.trim()) return null;
   const category = studyCategoryForMessage(message);
   return {
     id: message.id,
     category,
-    title: titleForStudyNote(message, category),
+    title: titleForStudyNote(message, category, displayLanguage),
     body: message.text,
   };
 }
 
-function NotesPage({ messages }: Pick<HinaSpaceProps, "messages">) {
+function NotesPage({ messages, displayLanguage }: Pick<HinaSpaceProps, "messages" | "displayLanguage">) {
   const [filter, setFilter] = useState<"all" | StudyCategory>("all");
   const notes = messages
-    .map(toStudyNote)
+    .map((message) => toStudyNote(message, displayLanguage))
     .filter((note): note is StudyNote => note !== null)
     .slice()
     .reverse();
@@ -218,7 +258,7 @@ function NotesPage({ messages }: Pick<HinaSpaceProps, "messages">) {
   return (
     <PageShell>
       <div className="mb-5 flex max-w-full gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Study categories">
-        {NOTE_FILTERS.map((item) => (
+        {noteFilters(displayLanguage).map((item) => (
           <button
             key={item.value}
             type="button"
@@ -233,7 +273,7 @@ function NotesPage({ messages }: Pick<HinaSpaceProps, "messages">) {
         ))}
       </div>
       {filteredNotes.length === 0 ? (
-        <EmptyState icon={<NotebookPen size={22} />} title="No notes in this pocket yet" copy="Chat with Hina and her most useful grammar fixes and expressions will appear here." />
+        <EmptyState icon={<NotebookPen size={22} />} title={uiText(displayLanguage, "noNotes")} copy={uiText(displayLanguage, "noNotesCopy")} />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">
           {filteredNotes.map((note) => (
@@ -412,10 +452,10 @@ function RelationshipPage({ messages, wishlistItems }: Pick<HinaSpaceProps, "mes
   );
 }
 
-export function HinaSpace({ view, messages, wishlistItems, onNavigate, onWishlistItemsChange }: HinaSpaceProps) {
-  if (view === "space") return <SpaceHome onNavigate={onNavigate} />;
-  if (view === "moments") return <MomentsPage />;
-  if (view === "notes") return <NotesPage messages={messages} />;
+export function HinaSpace({ view, messages, wishlistItems, onNavigate, onWishlistItemsChange, displayLanguage }: HinaSpaceProps) {
+  if (view === "space") return <SpaceHome onNavigate={onNavigate} displayLanguage={displayLanguage} />;
+  if (view === "moments") return <MomentsPage displayLanguage={displayLanguage} />;
+  if (view === "notes") return <NotesPage messages={messages} displayLanguage={displayLanguage} />;
   if (view === "wishlist") return <WishlistPage wishlistItems={wishlistItems} onWishlistItemsChange={onWishlistItemsChange} />;
   return <RelationshipPage messages={messages} wishlistItems={wishlistItems} />;
 }

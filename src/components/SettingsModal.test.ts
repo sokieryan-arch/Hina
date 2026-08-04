@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { SettingsModal } from "./SettingsModal";
-import type { BillingSummary, ProactiveSettings, UserProfile } from "../types";
+import type { BillingSummary, LanguageSettings, ProactiveSettings, UserProfile } from "../types";
 
 const user = {
   uid: "user-1",
@@ -34,6 +34,11 @@ const proactiveSettings: ProactiveSettings = {
   favoriteTopics: ["films", "food"],
 };
 
+const languageSettings: LanguageSettings = {
+  targetLanguage: "en",
+  nativeLanguage: "zh-CN",
+};
+
 function renderSettings() {
   return renderToStaticMarkup(React.createElement(SettingsModal, {
     isOpen: true,
@@ -46,6 +51,8 @@ function renderSettings() {
     onClearHistory: () => {},
     proactiveSettings,
     onProactiveSettingsChange: () => {},
+    languageSettings,
+    onLanguageSettingsChange: () => {},
     theme: "light",
     onThemeChange: () => {},
     onLogout: () => {},
@@ -65,6 +72,9 @@ test("settings modal renders avatar actions, appearance, account, and Pro usage"
   assert.match(markup, /Appearance/);
   assert.match(markup, /Light/);
   assert.match(markup, /Dark/);
+  assert.match(markup, /Language/);
+  assert.match(markup, /English \/ 简体中文/);
+  assert.doesNotMatch(markup, /Display Language/);
   assert.match(markup, /Favorite topics/);
   assert.match(markup, /2\/5/);
   assert.match(markup, /Daily life/);

@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { nanoid } from "nanoid";
-import { AppView, BillingSummary, HinaSpaceView, Message, ProactiveSettings, UserProfile, WishlistItem } from "./types";
+import { AppView, BillingSummary, HinaSpaceView, LanguageCode, LanguageSettings, Message, ProactiveSettings, UserProfile, WishlistItem } from "./types";
 import { ChatMessage } from "./components/ChatMessage";
 import { SettingsModal } from "./components/SettingsModal";
 import { AuthPanel } from "./components/AuthPanel";
@@ -19,10 +19,12 @@ import {
   db,
   handleFirestoreError,
   loadRemoteProactiveSettings,
+  loadRemoteLanguageSettings,
   loadUserProfile,
   loadWishlistItems,
   saveUserProfile,
   saveRemoteProactiveSettings,
+  saveRemoteLanguageSettings,
   saveWishlistItems,
 } from "./firebase";
 import {
@@ -42,6 +44,8 @@ import {
 import { collection, query, orderBy, onSnapshot, setDoc, doc, serverTimestamp } from "firebase/firestore";
 import { formatAuthErrorMessage, isPopupFallbackError } from "./authErrorMessage";
 import { pickChatPlaceholder } from "./i18n/chatPlaceholder";
+import { defaultLanguageSettingsForBrowser, normalizeLanguageSettings } from "./i18n/languages";
+import { uiText } from "./i18n/ui";
 import { ambientPresence, resolvePresence } from "./lib/presence";
 
 const DEFAULT_PROACTIVE_SETTINGS: ProactiveSettings = {
@@ -53,6 +57,7 @@ const DEFAULT_PROACTIVE_SETTINGS: ProactiveSettings = {
 };
 
 const PROACTIVE_SETTINGS_KEY = "hina.proactive.settings";
+const LANGUAGE_SETTINGS_KEY = "hina.language.settings";
 const PROACTIVE_LAST_CHECK_KEY = "hina.proactive.lastCheck";
 const THEME_STORAGE_KEY = "hina.theme";
 
@@ -86,13 +91,34 @@ function loadProactiveSettings(userId?: string): ProactiveSettings {
   }
 }
 
-function greeting(loggedIn: boolean): Message {
+function loadLanguageSettings(userId?: string): LanguageSettings {
+  try {
+    const raw = localStorage.getItem(storageKey(LANGUAGE_SETTINGS_KEY, userId));
+    return raw ? normalizeLanguageSettings(JSON.parse(raw)) : defaultLanguageSettingsForBrowser();
+  } catch {
+    return defaultLanguageSettingsForBrowser();
+  }
+}
+
+const GREETINGS: Record<LanguageCode, { signedIn: string; signedOut: string }> = {
+  en: {
+    signedIn: "Hey there! I just saw the craziest guy on the subway holding a tiny lizard! 🦎 What are you up to today?",
+    signedOut: "Hey there! Please log in to save our chat history! 😊",
+  },
+  "zh-CN": { signedIn: "嗨！我刚在地铁上看到有人捧着一只小蜥蜴。🦎 你今天在做什么？", signedOut: "嗨！登录后就可以保存我们的聊天记录啦。😊" },
+  ja: { signedIn: "やっほー！地下鉄で小さなトカゲを連れた人を見たよ。🦎 今日は何してる？", signedOut: "やっほー！ログインすると会話を保存できるよ。😊" },
+  ko: { signedIn: "안녕! 지하철에서 작은 도마뱀을 안고 있는 사람을 봤어. 🦎 오늘 뭐 하고 있어?", signedOut: "안녕! 로그인하면 대화를 저장할 수 있어. 😊" },
+  es: { signedIn: "¡Hola! Acabo de ver a alguien en el metro con una lagartija diminuta. 🦎 ¿Qué haces hoy?", signedOut: "¡Hola! Inicia sesión para guardar nuestras conversaciones. 😊" },
+  fr: { signedIn: "Coucou ! Je viens de voir quelqu'un dans le métro avec un tout petit lézard. 🦎 Tu fais quoi aujourd'hui ?", signedOut: "Coucou ! Connecte-toi pour garder nos conversations. 😊" },
+  de: { signedIn: "Hey! Ich habe gerade jemanden mit einer winzigen Eidechse in der U-Bahn gesehen. 🦎 Was machst du heute?", signedOut: "Hey! Melde dich an, damit unsere Chats gespeichert werden. 😊" },
+};
+
+function greeting(loggedIn: boolean, targetLanguage: LanguageCode): Message {
+  const copy = GREETINGS[targetLanguage] || GREETINGS.en;
   return {
     id: nanoid(),
     role: "model",
-    text: loggedIn
-      ? "Hey there! I just saw the craziest guy on the subway holding a tiny lizard! 🦎 What are you up to today?"
-      : "Hey there! Please login to save our chat history! 😊",
+    text: loggedIn ? copy.signedIn : copy.signedOut,
     type: "response",
     timestamp: Date.now(),
   };
@@ -135,7 +161,6 @@ async function parseJsonResponse(response: Response) {
 export default function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
-  const [chatPlaceholder] = useState(() => pickChatPlaceholder());
   const [isTyping, setIsTyping] = useState(false);
   const [ambient, setAmbient] = useState(() => ambientPresence());
   const [theme, setTheme] = useState<"light" | "dark">(() => loadTheme());
@@ -149,6 +174,7 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [view, setView] = useState<AppView>("chat");
   const [proactiveSettings, setProactiveSettings] = useState<ProactiveSettings>(() => loadProactiveSettings());
+  const [languageSettings, setLanguageSettings] = useState<LanguageSettings>(() => loadLanguageSettings());
   const [wishlistItems, setWishlistItems] = useState<WishlistItem[]>([]);
   const [authFeedback, setAuthFeedback] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -160,6 +186,10 @@ export default function App() {
     thinking: isTyping,
     speaking: Boolean(speakingMessageId),
   });
+  const displayLanguage = languageSettings.targetLanguage;
+  const chatPlaceholder = useMemo(() => pickChatPlaceholder({
+    context: { presence, targetLanguage: displayLanguage },
+  }), [displayLanguage, presence]);
 
   const applyAuthenticatedUser = useCallback((currentUser: User | null) => {
     if (currentUser && requiresEmailVerification(currentUser)) {
@@ -207,6 +237,10 @@ export default function App() {
   }, [theme]);
 
   useEffect(() => {
+    document.documentElement.lang = displayLanguage;
+  }, [displayLanguage]);
+
+  useEffect(() => {
     const timer = window.setInterval(() => setAmbient(ambientPresence()), 60_000);
     return () => window.clearInterval(timer);
   }, []);
@@ -243,25 +277,35 @@ export default function App() {
       setWishlistItems([]);
       setView("chat");
       setProactiveSettings(loadProactiveSettings());
+      setLanguageSettings(loadLanguageSettings());
       return;
     }
 
     let cancelled = false;
     setUserProfile(profileFromFirebaseUser(user));
     setProactiveSettings(loadProactiveSettings(user.uid));
+    setLanguageSettings(loadLanguageSettings(user.uid));
 
     Promise.all([
       loadUserProfile(user.uid),
       loadRemoteProactiveSettings(user.uid),
+      loadRemoteLanguageSettings(user.uid).catch((error) => {
+        console.warn("Remote language settings are not available yet; using the local preference.", error);
+        return null;
+      }),
       loadWishlistItems(user.uid),
       refreshBilling(),
-    ]).then(([remoteProfile, remoteSettings, remoteWishlist]) => {
+    ]).then(([remoteProfile, remoteSettings, remoteLanguages, remoteWishlist]) => {
       if (cancelled) return;
       if (remoteProfile) setUserProfile(remoteProfile);
       setWishlistItems(remoteWishlist);
       if (remoteSettings) {
         setProactiveSettings(remoteSettings);
         localStorage.setItem(storageKey(PROACTIVE_SETTINGS_KEY, user.uid), JSON.stringify(remoteSettings));
+      }
+      if (remoteLanguages) {
+        setLanguageSettings(remoteLanguages);
+        localStorage.setItem(storageKey(LANGUAGE_SETTINGS_KEY, user.uid), JSON.stringify(remoteLanguages));
       }
     }).catch((error) => console.error("Failed to load user settings:", error));
 
@@ -284,15 +328,15 @@ export default function App() {
           ...messageDoc.data(),
         })) as Message[];
 
-        setMessages(fetchedMessages.length > 0 ? fetchedMessages : [greeting(true)]);
+        setMessages(fetchedMessages.length > 0 ? fetchedMessages : [greeting(true, languageSettings.targetLanguage)]);
       }, (error) => {
         handleFirestoreError(error, "list" as any, `users/${user.uid}/messages`);
       });
       return () => unsubscribe();
     }
 
-    setMessages([greeting(false)]);
-  }, [user, isAuthReady]);
+    setMessages([greeting(false, languageSettings.targetLanguage)]);
+  }, [user, isAuthReady, languageSettings.targetLanguage]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -308,6 +352,20 @@ export default function App() {
           localStorage.setItem(storageKey(PROACTIVE_SETTINGS_KEY, userId), JSON.stringify(remoteSettings));
         })
         .catch((error) => console.error("Failed to save proactive settings:", error));
+    }
+  }, [userId]);
+
+  const updateLanguageSettings = useCallback((settings: LanguageSettings) => {
+    const normalized = normalizeLanguageSettings(settings);
+    setLanguageSettings(normalized);
+    localStorage.setItem(storageKey(LANGUAGE_SETTINGS_KEY, userId), JSON.stringify(normalized));
+    if (userId) {
+      saveRemoteLanguageSettings(userId, normalized)
+        .then((remoteSettings) => {
+          setLanguageSettings(remoteSettings);
+          localStorage.setItem(storageKey(LANGUAGE_SETTINGS_KEY, userId), JSON.stringify(remoteSettings));
+        })
+        .catch((error) => console.error("Failed to save language settings:", error));
     }
   }, [userId]);
 
@@ -348,13 +406,13 @@ export default function App() {
       }));
       chatHistory.push({
         role: "user",
-        text: `System Notification: The user has been idle. Please ask a casual English learning question proactively. Favorite topics: ${proactiveSettings.favoriteTopics.join(", ") || "everyday life"}.`,
+        text: `System Notification: The user has been idle. Please ask a casual question proactively in the configured target language. Favorite topics: ${proactiveSettings.favoriteTopics.join(", ") || "everyday life"}.`,
       });
 
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: await getJsonHeaders(),
-        body: JSON.stringify({ messages: chatHistory.slice(-10) }),
+        body: JSON.stringify({ messages: chatHistory.slice(-10), languageSettings }),
       });
       const data = await parseJsonResponse(response);
       if (!response.ok) {
@@ -383,7 +441,7 @@ export default function App() {
       console.warn("Proactive fetch failed, skipping till next interval:", err.message);
       setIsTyping(false);
     }
-  }, [getJsonHeaders, isTyping, messages, proactiveSettings, saveMessageToFirebase, user]);
+  }, [getJsonHeaders, isTyping, languageSettings, messages, proactiveSettings, saveMessageToFirebase, user]);
 
   useEffect(() => {
     if (!proactiveSettings.enabled || isTyping || !isAuthReady || messages.length === 0) return;
@@ -579,7 +637,7 @@ export default function App() {
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: await getJsonHeaders(),
-        body: JSON.stringify({ messages: chatHistory.slice(-10) }),
+        body: JSON.stringify({ messages: chatHistory.slice(-10), languageSettings }),
       });
       const data = await parseJsonResponse(response);
 
@@ -707,6 +765,7 @@ export default function App() {
         onOpenSpace={() => setView("space")}
         onBack={() => setView(view === "space" ? "chat" : "space")}
         onOpenSettings={() => setIsSettingsOpen(true)}
+        displayLanguage={displayLanguage}
       />
 
       {view !== "chat" ? (
@@ -716,6 +775,7 @@ export default function App() {
           wishlistItems={wishlistItems}
           onNavigate={(nextView) => setView(nextView)}
           onWishlistItemsChange={updateWishlistItems}
+          displayLanguage={displayLanguage}
         />
       ) : (
         <>
@@ -723,9 +783,9 @@ export default function App() {
             <div className="max-w-3xl mx-auto flex flex-col justify-end min-h-full">
               <div className="text-center mb-8">
                 <div className="inline-flex items-center justify-center space-x-2 bg-[#F7F2E9] dark:bg-[#342042] text-[#B5A48B] dark:text-[#d6bdec] border-[#E8E2D6] dark:border-[#4b305e] text-xs font-bold uppercase tracking-widest px-4 py-1.5 rounded-full border transition-colors duration-300">
-                  <span>Your English Learning Partner</span>
+                  <span>{uiText(displayLanguage, "learningPartner")}</span>
                 </div>
-                <p className="text-[#8A817C] dark:text-[#89739c] text-xs mt-3 opacity-60 font-medium">Hina can make mistakes. Consider verifying important information.</p>
+                <p className="text-[#8A817C] dark:text-[#89739c] text-xs mt-3 opacity-60 font-medium">{uiText(displayLanguage, "aiDisclaimer")}</p>
               </div>
 
               <div className="flex flex-col pb-4">
@@ -768,7 +828,7 @@ export default function App() {
                   }
                 }}
                 placeholder={chatPlaceholder}
-                aria-label="Message Hina"
+                aria-label={uiText(displayLanguage, "messageHina")}
                 className="flex-1 h-10 min-h-10 max-h-10 overflow-hidden bg-transparent border-0 resize-none py-2.5 px-4 focus:outline-none focus:ring-0 text-[15px] block leading-5 placeholder:whitespace-nowrap placeholder:text-[14px] placeholder:transition-opacity focus:placeholder:opacity-0 placeholder-[#B5A48B] dark:placeholder-[#89739c] text-[#4A4A4A] dark:text-[#e5dceb]"
                 rows={1}
                 disabled={isTyping}
@@ -777,7 +837,7 @@ export default function App() {
                 onClick={handleSend}
                 disabled={!inputValue.trim() || isTyping}
                 className="w-10 h-10 shrink-0 ml-1.5 bg-[#FF9F1C] dark:bg-[#660874] text-white hover:scale-105 transition-transform disabled:bg-[#E8E2D6] dark:disabled:bg-[#301f3b] disabled:text-[#B5A48B] dark:disabled:text-[#6a537a] disabled:hover:scale-100 rounded-full flex items-center justify-center shadow-md disabled:shadow-none transition-colors duration-300"
-                title="Send"
+                title={uiText(displayLanguage, "send")}
               >
                 <Send size={18} className="-ml-0.5" />
               </button>
@@ -794,9 +854,11 @@ export default function App() {
         billing={billing}
         onProfileChange={setUserProfile}
         onBillingChange={setBilling}
-        onClearHistory={() => setMessages([greeting(Boolean(user))])}
+        onClearHistory={() => setMessages([greeting(Boolean(user), displayLanguage)])}
         proactiveSettings={proactiveSettings}
         onProactiveSettingsChange={updateProactiveSettings}
+        languageSettings={languageSettings}
+        onLanguageSettingsChange={updateLanguageSettings}
         theme={theme}
         onThemeChange={setTheme}
         onLogout={handleLogout}

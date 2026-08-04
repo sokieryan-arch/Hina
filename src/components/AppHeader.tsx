@@ -1,14 +1,23 @@
 import { ArrowLeft, Moon, Settings, Sun } from "lucide-react";
 import { motion } from "motion/react";
-import { PRESENCE_DEFINITIONS, type PresenceStatus } from "../lib/presence";
-import type { AppView } from "../types";
+import { PRESENCE_DEFINITIONS, presenceLabel, type PresenceStatus } from "../lib/presence";
+import type { AppView, LanguageCode } from "../types";
+import { uiText } from "../i18n/ui";
 
-const VIEW_TITLES: Record<Exclude<AppView, "chat">, string> = {
-  space: "🪐 Hina's Space",
-  moments: "📸 Hina's Moments",
-  notes: "✍️ Hina's Study",
-  wishlist: "🎒 Hina's Wishlist",
-  relationship: "❤️ Between us",
+const VIEW_TITLE_KEYS = {
+  space: "space",
+  moments: "moments",
+  notes: "study",
+  wishlist: "wishlist",
+  relationship: "relationship",
+} as const;
+
+const VIEW_EMOJI: Record<Exclude<AppView, "chat">, string> = {
+  space: "🪐",
+  moments: "📸",
+  notes: "✍️",
+  wishlist: "🎒",
+  relationship: "❤️",
 };
 
 interface AppHeaderProps {
@@ -19,6 +28,7 @@ interface AppHeaderProps {
   onOpenSpace: () => void;
   onBack: () => void;
   onOpenSettings: () => void;
+  displayLanguage: LanguageCode;
 }
 
 export function AppHeader({
@@ -29,6 +39,7 @@ export function AppHeader({
   onOpenSpace,
   onBack,
   onOpenSettings,
+  displayLanguage,
 }: AppHeaderProps) {
   const HinaIcon = theme === "dark" ? Moon : Sun;
   const definition = PRESENCE_DEFINITIONS[presence];
@@ -40,7 +51,7 @@ export function AppHeader({
           type="button"
           onClick={onOpenSpace}
           className="group flex items-center gap-3 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF9F1C]"
-          title="Open Hina's Space"
+          title={uiText(displayLanguage, "openSpace")}
         >
           <motion.span
             animate={isSpeaking ? { scale: [1, 1.12, 1], rotate: [-2, 2, -2] } : { scale: 1 }}
@@ -54,7 +65,7 @@ export function AppHeader({
             <span className="block font-bold text-lg text-[#2D2D2D] dark:text-white leading-tight tracking-normal">Hina</span>
             <span className={`text-xs font-medium flex items-center mt-0.5 ${definition.textClass}`}>
               {definition.showsIndicator && <span className={`w-2 h-2 rounded-full inline-block mr-1.5 ${definition.dotClass}`} />}
-              {definition.label}
+              {presenceLabel(presence, displayLanguage)}
             </span>
           </span>
         </button>
@@ -64,12 +75,12 @@ export function AppHeader({
             type="button"
             onClick={onBack}
             className="h-10 w-10 shrink-0 rounded-full text-[#7C746F] dark:text-[#bda9ca] hover:bg-[#F7F2E9] dark:hover:bg-[#342042] flex items-center justify-center"
-            title="Back"
+            title={uiText(displayLanguage, "back")}
           >
             <ArrowLeft size={20} />
           </button>
           <h1 className="truncate text-base sm:text-lg font-bold text-[#2D2D2D] dark:text-white tracking-normal">
-            {VIEW_TITLES[view]}
+            {VIEW_EMOJI[view]} {uiText(displayLanguage, VIEW_TITLE_KEYS[view])}
           </h1>
         </div>
       )}
@@ -78,7 +89,7 @@ export function AppHeader({
         type="button"
         onClick={onOpenSettings}
         className="h-10 w-10 shrink-0 rounded-full text-[#8A817C] dark:text-[#a58ebd] hover:bg-[#F7F2E9] dark:hover:bg-[#342042] flex items-center justify-center"
-        title="Settings"
+        title={uiText(displayLanguage, "settings")}
       >
         <Settings size={21} />
       </button>

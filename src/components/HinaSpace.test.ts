@@ -31,6 +31,7 @@ test("HinaSpace renders the four main sections", () => {
     wishlistItems: wishlist,
     onNavigate: () => {},
     onWishlistItemsChange: () => {},
+    displayLanguage: "en",
   }));
 
   assert.match(markup, /Moments/);
@@ -50,6 +51,7 @@ test("HinaSpace study view derives notes and category tabs from chat messages", 
     wishlistItems: wishlist,
     onNavigate: () => {},
     onWishlistItemsChange: () => {},
+    displayLanguage: "en",
   }));
 
   assert.match(markup, /Use day, not today/);
@@ -71,9 +73,34 @@ test("HinaSpace relationship view summarizes chat and list history", () => {
     wishlistItems: wishlist,
     onNavigate: () => {},
     onWishlistItemsChange: () => {},
+    displayLanguage: "en",
   }));
 
   assert.match(markup, /Messages/);
   assert.match(markup, /Study notes/);
   assert.match(markup, /List items/);
+});
+
+test("HinaSpace renders Moments and study labels in the target language", () => {
+  const momentsMarkup = renderToStaticMarkup(React.createElement(HinaSpace, {
+    view: "moments",
+    messages,
+    wishlistItems: wishlist,
+    onNavigate: () => {},
+    onWishlistItemsChange: () => {},
+    displayLanguage: "zh-CN",
+  }));
+  const studyMarkup = renderToStaticMarkup(React.createElement(HinaSpace, {
+    view: "notes",
+    messages,
+    wishlistItems: wishlist,
+    onNavigate: () => {},
+    onWishlistItemsChange: () => {},
+    displayLanguage: "zh-CN",
+  }));
+
+  assert.match(momentsMarkup, /中央公园的页边笔记/);
+  assert.match(studyMarkup, /语法/);
+  assert.match(studyMarkup, /词汇/);
+  assert.match(studyMarkup, /表达/);
 });

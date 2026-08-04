@@ -1,5 +1,8 @@
+import type { LanguageCode } from "../types";
+
 export interface ChatPlaceholderContext {
   presence?: string;
+  targetLanguage?: LanguageCode;
 }
 
 const DEFAULT_PLACEHOLDERS = [
@@ -27,11 +30,23 @@ const PRESENCE_PLACEHOLDERS: Record<string, string[]> = {
   speaking: ["Hina is speaking. Type the next reply when ready..."],
 };
 
+const LANGUAGE_PLACEHOLDERS: Partial<Record<LanguageCode, string[]>> = {
+  "zh-CN": ["告诉 Hina 今天发生了什么……", "用一句中文开始今天的练习……", "今天想和 Hina 聊什么？"],
+  ja: ["今日あったことをHinaに話して…", "一文から練習を始めよう…", "今日は何を話す？"],
+  ko: ["오늘 있었던 일을 Hina에게 말해 주세요…", "한 문장으로 연습을 시작해요…", "오늘은 무엇을 이야기할까요?"],
+  es: ["Cuéntale a Hina qué pasó hoy…", "Empieza con una frase…", "¿Qué practicamos hoy?"],
+  fr: ["Racontez à Hina votre journée…", "Commencez par une phrase…", "Qu'est-ce qu'on travaille aujourd'hui ?"],
+  de: ["Erzähl Hina, was heute passiert ist…", "Starte mit einem Satz…", "Was üben wir heute?"],
+};
+
 function keyFromPresence(presence: string | undefined) {
   return presence?.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-") || "";
 }
 
 export function getChatPlaceholderCandidates(context: ChatPlaceholderContext = {}) {
+  if (context.targetLanguage && context.targetLanguage !== "en") {
+    return LANGUAGE_PLACEHOLDERS[context.targetLanguage] || DEFAULT_PLACEHOLDERS;
+  }
   return PRESENCE_PLACEHOLDERS[keyFromPresence(context.presence)] || DEFAULT_PLACEHOLDERS;
 }
 
