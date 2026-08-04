@@ -53,3 +53,30 @@ test("app header follows the target language", () => {
   assert.match(markup, /Hina 的学习卡片/);
   assert.match(markup, /返回/);
 });
+
+test("app header supports Portuguese", () => {
+  const notesMarkup = renderToStaticMarkup(React.createElement(AppHeader, {
+    view: "notes",
+    theme: "light",
+    presence: "reading",
+    isSpeaking: false,
+    onOpenSpace: () => {},
+    onBack: () => {},
+    onOpenSettings: () => {},
+    displayLanguage: "pt",
+  }));
+  const chatMarkup = renderToStaticMarkup(React.createElement(AppHeader, {
+    view: "chat",
+    theme: "light",
+    presence: "reading",
+    isSpeaking: false,
+    onOpenSpace: () => {},
+    onBack: () => {},
+    onOpenSettings: () => {},
+    displayLanguage: "pt",
+  }));
+
+  assert.match(notesMarkup, /Estudos da Hina/);
+  assert.match(notesMarkup, /Voltar/);
+  assert.match(chatMarkup, /Lendo/);
+});

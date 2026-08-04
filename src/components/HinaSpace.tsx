@@ -99,6 +99,11 @@ const TRANSLATED_MOMENTS: Partial<Record<LanguageCode, typeof MOMENTS>> = {
     { id: "subway-lizard", title: "Misión secundaria en el metro", body: "Alguien llevaba una lagartija diminuta con suéter. Hina decidió que Nueva York es una prueba de vocabulario con puertas." },
     { id: "coffee-window", title: "Café junto a la ventana", body: "Hina encontró una cafetería donde recuerdan a los clientes por adjetivos. Ahora es 'la chica de las gominolas'." },
   ],
+  pt: [
+    { id: "central-park-book", title: "Anotação à margem no Central Park", body: "Hina passou a tarde fingindo ler um livro de filosofia e acabou sublinhando o recibo dos doces. Muito acadêmico." },
+    { id: "subway-lizard", title: "Missão paralela no metrô", body: "Alguém no trem estava com um lagarto minúsculo de suéter. Hina decidiu que Nova York é basicamente um teste de vocabulário com portas." },
+    { id: "coffee-window", title: "Café junto à janela", body: "Hina encontrou uma cafeteria onde os clientes habituais são lembrados por adjetivos. Agora ela é 'a garota das balas de goma'." },
+  ],
   fr: [
     { id: "central-park-book", title: "Note en marge à Central Park", body: "Hina a passé l'après-midi à faire semblant de lire de la philosophie avant de souligner son ticket de bonbons. Très académique." },
     { id: "subway-lizard", title: "Quête secondaire dans le métro", body: "Quelqu'un avait un minuscule lézard en pull. Hina a décidé que New York était un test de vocabulaire avec des portes." },

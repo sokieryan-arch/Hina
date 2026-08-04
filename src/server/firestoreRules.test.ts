@@ -22,5 +22,5 @@ test("Firestore rules validate owner-only language settings", () => {
 
   assert.match(source, /match \/settings\/language/);
   assert.match(source, /isValidLanguageSettings\(incoming\(\)\)/);
-  assert.match(source, /\^\(en\|zh-CN\|ja\|ko\|es\|fr\|de\)\$/);
+  assert.match(source, /\^\(en\|zh-CN\|ja\|ko\|es\|pt\|fr\|de\)\$/);
 });

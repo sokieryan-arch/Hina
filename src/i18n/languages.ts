@@ -12,6 +12,7 @@ export const LANGUAGE_OPTIONS: readonly LanguageOption[] = [
   { code: "ja", nativeLabel: "日本語", englishLabel: "Japanese" },
   { code: "ko", nativeLabel: "한국어", englishLabel: "Korean" },
   { code: "es", nativeLabel: "Español", englishLabel: "Spanish" },
+  { code: "pt", nativeLabel: "Português", englishLabel: "Portuguese" },
   { code: "fr", nativeLabel: "Français", englishLabel: "French" },
   { code: "de", nativeLabel: "Deutsch", englishLabel: "German" },
 ] as const;

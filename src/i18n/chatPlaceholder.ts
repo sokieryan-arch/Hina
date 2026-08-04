@@ -35,6 +35,7 @@ const LANGUAGE_PLACEHOLDERS: Partial<Record<LanguageCode, string[]>> = {
   ja: ["今日あったことをHinaに話して…", "一文から練習を始めよう…", "今日は何を話す？"],
   ko: ["오늘 있었던 일을 Hina에게 말해 주세요…", "한 문장으로 연습을 시작해요…", "오늘은 무엇을 이야기할까요?"],
   es: ["Cuéntale a Hina qué pasó hoy…", "Empieza con una frase…", "¿Qué practicamos hoy?"],
+  pt: ["Conte à Hina o que aconteceu hoje…", "Comece com uma frase…", "O que vamos praticar hoje?"],
   fr: ["Racontez à Hina votre journée…", "Commencez par une phrase…", "Qu'est-ce qu'on travaille aujourd'hui ?"],
   de: ["Erzähl Hina, was heute passiert ist…", "Starte mit einem Satz…", "Was üben wir heute?"],
 };

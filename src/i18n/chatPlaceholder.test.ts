@@ -13,3 +13,10 @@ test("getChatPlaceholderCandidates supports presence-specific prompts", () => {
   assert.ok(reading.some((candidate) => candidate.includes("book")));
   assert.notDeepEqual(reading, getChatPlaceholderCandidates());
 });
+
+test("getChatPlaceholderCandidates supports Portuguese practice", () => {
+  const candidates = getChatPlaceholderCandidates({ targetLanguage: "pt" });
+
+  assert.match(candidates[0], /Conte à Hina/);
+  assert.match(candidates[2], /praticar hoje/);
+});

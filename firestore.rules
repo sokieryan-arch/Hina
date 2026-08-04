@@ -90,9 +90,9 @@ service cloud.firestore {
       return data.keys().hasAll(['targetLanguage', 'nativeLanguage', 'updatedAt'])
         && data.keys().hasOnly(['targetLanguage', 'nativeLanguage', 'updatedAt'])
         && data.targetLanguage is string
-        && data.targetLanguage.matches('^(en|zh-CN|ja|ko|es|fr|de)$')
+        && data.targetLanguage.matches('^(en|zh-CN|ja|ko|es|pt|fr|de)$')
         && data.nativeLanguage is string
-        && data.nativeLanguage.matches('^(en|zh-CN|ja|ko|es|fr|de)$')
+        && data.nativeLanguage.matches('^(en|zh-CN|ja|ko|es|pt|fr|de)$')
         && data.updatedAt == request.time;
     }
 

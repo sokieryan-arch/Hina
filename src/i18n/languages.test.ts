@@ -15,3 +15,10 @@ test("invalid language values fall back to international defaults", () => {
     nativeLanguage: "zh-CN",
   });
 });
+
+test("Portuguese is available for both target and native language", () => {
+  const settings = normalizeLanguageSettings({ targetLanguage: "pt", nativeLanguage: "pt" });
+
+  assert.deepEqual(settings, { targetLanguage: "pt", nativeLanguage: "pt" });
+  assert.equal(languageSummary(settings), "Português / Português");
+});

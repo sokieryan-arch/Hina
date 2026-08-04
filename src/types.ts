@@ -19,7 +19,7 @@ export interface ProactiveSettings {
   favoriteTopics: string[];
 }
 
-export type LanguageCode = "en" | "zh-CN" | "ja" | "ko" | "es" | "fr" | "de";
+export type LanguageCode = "en" | "zh-CN" | "ja" | "ko" | "es" | "pt" | "fr" | "de";
 
 export interface LanguageSettings {
   targetLanguage: LanguageCode;

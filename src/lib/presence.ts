@@ -35,6 +35,7 @@ const PRESENCE_LABELS: Partial<Record<LanguageCode, Record<PresenceStatus, strin
   ja: { online: "オンライン", sleeping: "🌙 睡眠中", coffee: "☕ コーヒー中", reading: "📚 読書中", drawing: "🎨 お絵描き中", walking: "🚶 散歩中", daydreaming: "💭 空想中", preparing: "準備中", thinking: "考え中", speaking: "話しています" },
   ko: { online: "온라인", sleeping: "🌙 자는 중", coffee: "☕ 커피 만드는 중", reading: "📚 독서 중", drawing: "🎨 그림 그리는 중", walking: "🚶 산책 중", daydreaming: "💭 상상 중", preparing: "준비 중", thinking: "생각 중", speaking: "말하는 중" },
   es: { online: "En línea", sleeping: "🌙 Durmiendo", coffee: "☕ Preparando café", reading: "📚 Leyendo", drawing: "🎨 Dibujando", walking: "🚶 Paseando", daydreaming: "💭 Soñando despierta", preparing: "Preparando", thinking: "Pensando", speaking: "Hablando" },
+  pt: { online: "Online", sleeping: "🌙 Dormindo", coffee: "☕ Fazendo café", reading: "📚 Lendo", drawing: "🎨 Desenhando", walking: "🚶 Caminhando", daydreaming: "💭 Sonhando acordada", preparing: "Preparando", thinking: "Pensando", speaking: "Falando" },
   fr: { online: "En ligne", sleeping: "🌙 Dort", coffee: "☕ Prépare un café", reading: "📚 Lit", drawing: "🎨 Dessine", walking: "🚶 Se promène", daydreaming: "💭 Rêvasse", preparing: "Prépare", thinking: "Réfléchit", speaking: "Parle" },
   de: { online: "Online", sleeping: "🌙 Schläft", coffee: "☕ Macht Kaffee", reading: "📚 Liest", drawing: "🎨 Zeichnet", walking: "🚶 Spaziert", daydreaming: "💭 Tagträumt", preparing: "Bereitet vor", thinking: "Denkt nach", speaking: "Spricht" },
 };

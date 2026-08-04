@@ -104,3 +104,27 @@ test("HinaSpace renders Moments and study labels in the target language", () => 
   assert.match(studyMarkup, /词汇/);
   assert.match(studyMarkup, /表达/);
 });
+
+test("HinaSpace renders Portuguese Moments and study labels", () => {
+  const momentsMarkup = renderToStaticMarkup(React.createElement(HinaSpace, {
+    view: "moments",
+    messages,
+    wishlistItems: wishlist,
+    onNavigate: () => {},
+    onWishlistItemsChange: () => {},
+    displayLanguage: "pt",
+  }));
+  const studyMarkup = renderToStaticMarkup(React.createElement(HinaSpace, {
+    view: "notes",
+    messages,
+    wishlistItems: wishlist,
+    onNavigate: () => {},
+    onWishlistItemsChange: () => {},
+    displayLanguage: "pt",
+  }));
+
+  assert.match(momentsMarkup, /Anotação à margem no Central Park/);
+  assert.match(studyMarkup, /Gramática/);
+  assert.match(studyMarkup, /Vocabulário/);
+  assert.match(studyMarkup, /Expressões/);
+});

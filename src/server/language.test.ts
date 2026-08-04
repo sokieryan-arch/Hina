@@ -21,3 +21,11 @@ test("Hina prompt separates target conversation from native explanations", () =>
   assert.match(prompt, /main conversational response must be written in French/);
   assert.match(prompt, /explained in English/);
 });
+
+test("Hina can use Portuguese as the learning language", () => {
+  const prompt = buildHinaSystemInstruction({ targetLanguage: "pt", nativeLanguage: "zh-CN" });
+
+  assert.match(prompt, /target language is Portuguese/);
+  assert.match(prompt, /main conversational response must be written in Portuguese/);
+  assert.match(prompt, /native language is Simplified Chinese/);
+});

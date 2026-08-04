@@ -109,6 +109,7 @@ const GREETINGS: Record<LanguageCode, { signedIn: string; signedOut: string }> =
   ja: { signedIn: "やっほー！地下鉄で小さなトカゲを連れた人を見たよ。🦎 今日は何してる？", signedOut: "やっほー！ログインすると会話を保存できるよ。😊" },
   ko: { signedIn: "안녕! 지하철에서 작은 도마뱀을 안고 있는 사람을 봤어. 🦎 오늘 뭐 하고 있어?", signedOut: "안녕! 로그인하면 대화를 저장할 수 있어. 😊" },
   es: { signedIn: "¡Hola! Acabo de ver a alguien en el metro con una lagartija diminuta. 🦎 ¿Qué haces hoy?", signedOut: "¡Hola! Inicia sesión para guardar nuestras conversaciones. 😊" },
+  pt: { signedIn: "Oi! Acabei de ver alguém no metrô com um lagarto minúsculo. 🦎 O que você está fazendo hoje?", signedOut: "Oi! Entre na sua conta para salvar nossas conversas. 😊" },
   fr: { signedIn: "Coucou ! Je viens de voir quelqu'un dans le métro avec un tout petit lézard. 🦎 Tu fais quoi aujourd'hui ?", signedOut: "Coucou ! Connecte-toi pour garder nos conversations. 😊" },
   de: { signedIn: "Hey! Ich habe gerade jemanden mit einer winzigen Eidechse in der U-Bahn gesehen. 🦎 Was machst du heute?", signedOut: "Hey! Melde dich an, damit unsere Chats gespeichert werden. 😊" },
 };
