@@ -6,6 +6,7 @@ import { uiText } from "../i18n/ui";
 
 const VIEW_TITLE_KEYS = {
   space: "space",
+  practice: "practice",
   moments: "moments",
   notes: "study",
   wishlist: "wishlist",
@@ -14,6 +15,7 @@ const VIEW_TITLE_KEYS = {
 
 const VIEW_EMOJI: Record<Exclude<AppView, "chat">, string> = {
   space: "🪐",
+  practice: "🎯",
   moments: "📸",
   notes: "✍️",
   wishlist: "🎒",

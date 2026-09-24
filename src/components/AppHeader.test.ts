@@ -80,3 +80,18 @@ test("app header supports Portuguese", () => {
   assert.match(notesMarkup, /Voltar/);
   assert.match(chatMarkup, /Lendo/);
 });
+
+test("app header names the speaking practice view", () => {
+  const markup = renderToStaticMarkup(React.createElement(AppHeader, {
+    view: "practice",
+    theme: "light",
+    presence: "online",
+    isSpeaking: false,
+    onOpenSpace: () => {},
+    onBack: () => {},
+    onOpenSettings: () => {},
+    displayLanguage: "en",
+  }));
+
+  assert.match(markup, /🎯 Hina&#x27;s Practice/);
+});

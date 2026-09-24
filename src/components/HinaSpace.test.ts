@@ -24,7 +24,7 @@ const wishlist: WishlistItem[] = [{
   updatedAt: Date.now(),
 }];
 
-test("HinaSpace renders the four main sections", () => {
+test("HinaSpace renders Practice above the four personal sections", () => {
   const markup = renderToStaticMarkup(React.createElement(HinaSpace, {
     view: "space",
     messages,
@@ -34,6 +34,8 @@ test("HinaSpace renders the four main sections", () => {
     displayLanguage: "en",
   }));
 
+  assert.match(markup, /Practice/);
+  assert.match(markup, /🎯/);
   assert.match(markup, /Moments/);
   assert.match(markup, /📸/);
   assert.match(markup, /Study/);

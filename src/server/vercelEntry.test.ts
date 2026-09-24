@@ -12,3 +12,10 @@ test("Vercel server entry does not statically import JSON config", () => {
   const source = readFileSync(new URL("../../server.ts", import.meta.url), "utf8");
   assert.doesNotMatch(source, /firebase-applet-config\.json/);
 });
+
+test("server exposes the authenticated speaking practice evaluation endpoint", () => {
+  const source = readFileSync(new URL("../../server.ts", import.meta.url), "utf8");
+  assert.match(source, /\/api\/practice\/speaking\/evaluate/);
+  assert.match(source, /readSpeakingEvaluationInput/);
+  assert.match(source, /incrementChatUsage/);
+});

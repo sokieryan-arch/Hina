@@ -15,8 +15,9 @@ import {
   X,
 } from "lucide-react";
 import { nanoid } from "nanoid";
-import type { HinaSpaceView, LanguageCode, Message, WishlistItem, WishlistKind } from "../types";
+import type { HinaSpaceView, LanguageCode, Message, SpeakingEvaluation, SpeakingEvaluationInput, WishlistItem, WishlistKind } from "../types";
 import { uiText } from "../i18n/ui";
+import { SpeakingPractice } from "./SpeakingPractice";
 
 interface HinaSpaceProps {
   view: HinaSpaceView;
@@ -24,7 +25,10 @@ interface HinaSpaceProps {
   wishlistItems: WishlistItem[];
   onNavigate: (view: HinaSpaceView) => void;
   onWishlistItemsChange: (items: WishlistItem[]) => void;
+  onEvaluateSpeaking?: (input: SpeakingEvaluationInput) => Promise<SpeakingEvaluation>;
+  onSaveStudyNote?: (note: string) => Promise<void> | void;
   displayLanguage: LanguageCode;
+  nativeLanguage?: LanguageCode;
 }
 
 function spaceItems(displayLanguage: LanguageCode) {
@@ -137,6 +141,21 @@ function EmptyState({ icon, title, copy }: { icon: ReactNode; title: string; cop
 function SpaceHome({ onNavigate, displayLanguage }: Pick<HinaSpaceProps, "onNavigate" | "displayLanguage">) {
   return (
     <PageShell centered>
+      <motion.button
+        type="button"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        onClick={() => onNavigate("practice")}
+        className="group mb-5 flex min-h-28 w-full items-center gap-4 rounded-[24px] border border-[#E6C98A] bg-[#FFF8E7] p-5 text-left text-[#6E5119] shadow-[0_5px_18px_rgba(68,55,35,0.08)] transition-all hover:-translate-y-1 hover:shadow-[0_10px_28px_rgba(68,55,35,0.12)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF9F1C] dark:border-[#5a4669] dark:bg-[#33263e] dark:text-[#f6d98e] dark:shadow-none sm:p-6"
+        data-space-practice
+      >
+        <span className="text-3xl sm:text-4xl" aria-hidden="true">🎯</span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-lg font-bold tracking-normal sm:text-xl">{uiText(displayLanguage, "practiceTitle")}</span>
+          <span className="mt-1 block text-xs leading-relaxed opacity-80 sm:text-sm">{uiText(displayLanguage, "practiceCopy")}</span>
+        </span>
+        <ChevronRight size={20} className="shrink-0 opacity-50 transition-transform group-hover:translate-x-1" />
+      </motion.button>
       <div className="grid grid-cols-2 gap-4 sm:gap-5" data-space-grid>
         {spaceItems(displayLanguage).map((item, index) => (
           <motion.button
@@ -457,8 +476,19 @@ function RelationshipPage({ messages, wishlistItems }: Pick<HinaSpaceProps, "mes
   );
 }
 
-export function HinaSpace({ view, messages, wishlistItems, onNavigate, onWishlistItemsChange, displayLanguage }: HinaSpaceProps) {
+export function HinaSpace({
+  view,
+  messages,
+  wishlistItems,
+  onNavigate,
+  onWishlistItemsChange,
+  onEvaluateSpeaking = async () => { throw new Error("Speaking feedback is unavailable."); },
+  onSaveStudyNote = () => {},
+  displayLanguage,
+  nativeLanguage = "zh-CN",
+}: HinaSpaceProps) {
   if (view === "space") return <SpaceHome onNavigate={onNavigate} displayLanguage={displayLanguage} />;
+  if (view === "practice") return <SpeakingPractice nativeLanguage={nativeLanguage} onEvaluate={onEvaluateSpeaking} onSaveStudyNote={onSaveStudyNote} />;
   if (view === "moments") return <MomentsPage displayLanguage={displayLanguage} />;
   if (view === "notes") return <NotesPage messages={messages} displayLanguage={displayLanguage} />;
   if (view === "wishlist") return <WishlistPage wishlistItems={wishlistItems} onWishlistItemsChange={onWishlistItemsChange} />;

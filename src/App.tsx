@@ -5,7 +5,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { nanoid } from "nanoid";
-import { AppView, BillingSummary, HinaSpaceView, LanguageCode, LanguageSettings, Message, ProactiveSettings, UserProfile, WishlistItem } from "./types";
+import { AppView, BillingSummary, HinaSpaceView, LanguageCode, LanguageSettings, Message, ProactiveSettings, SpeakingEvaluation, SpeakingEvaluationInput, UserProfile, WishlistItem } from "./types";
 import { ChatMessage } from "./components/ChatMessage";
 import { SettingsModal } from "./components/SettingsModal";
 import { AuthPanel } from "./components/AuthPanel";
@@ -396,6 +396,31 @@ export default function App() {
     }
   }, [user]);
 
+  const evaluateSpeaking = useCallback(async (input: SpeakingEvaluationInput): Promise<SpeakingEvaluation> => {
+    const response = await fetch("/api/practice/speaking/evaluate", {
+      method: "POST",
+      headers: await getJsonHeaders(),
+      body: JSON.stringify(input),
+    });
+    const data = await parseJsonResponse(response);
+    if (data.billing) setBilling(data.billing);
+    if (!response.ok || !data.evaluation) {
+      throw new Error(renderChatErrorMessage(data.error || `Speaking feedback failed with status ${response.status}.`));
+    }
+    return data.evaluation as SpeakingEvaluation;
+  }, [getJsonHeaders]);
+
+  const savePracticeNote = useCallback(async (text: string) => {
+    const note: Message = {
+      id: nanoid(),
+      role: "model",
+      text,
+      type: "correction",
+      timestamp: Date.now(),
+    };
+    await saveMessageToFirebase(note);
+  }, [saveMessageToFirebase]);
+
   const handleProactiveTrigger = useCallback(async () => {
     if (isTyping || !proactiveSettings.enabled) return;
     setIsTyping(true);
@@ -776,7 +801,10 @@ export default function App() {
           wishlistItems={wishlistItems}
           onNavigate={(nextView) => setView(nextView)}
           onWishlistItemsChange={updateWishlistItems}
+          onEvaluateSpeaking={evaluateSpeaking}
+          onSaveStudyNote={savePracticeNote}
           displayLanguage={displayLanguage}
+          nativeLanguage={languageSettings.nativeLanguage}
         />
       ) : (
         <>

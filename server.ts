@@ -12,9 +12,18 @@ import {
 import { extractPaddleBillingUpdate, readPaddleServerConfig, verifyPaddleWebhookSignature } from "./src/server/paddle.js";
 import { isOperationTimeoutError, withTimeout } from "./src/server/timeout.js";
 import { buildHinaSystemInstruction, readLanguageSettings } from "./src/server/language.js";
+import {
+  buildSpeakingEvaluationPrompt,
+  normalizeSpeakingEvaluation,
+  readSpeakingEvaluationInput,
+} from "./src/server/speaking.js";
 
 const aiConfig = readAIConfig();
 const REQUEST_TIMEOUT_MS = aiConfig.timeoutMs;
+const SPEAKING_TIMEOUT_MS = Math.max(
+  REQUEST_TIMEOUT_MS,
+  Number.parseInt(process.env.GEMINI_SPEAKING_TIMEOUT_MS || "60000", 10) || 60000,
+);
 const geminiAI = aiConfig.provider === "gemini"
   ? new GoogleGenAI({
     apiKey: aiConfig.apiKey,
@@ -73,6 +82,30 @@ const HINA_OPENAI_RESPONSE_SCHEMA = {
     },
   },
   required: ["response"],
+};
+
+const SPEAKING_EVALUATION_SCHEMA = {
+  type: Type.OBJECT,
+  properties: {
+    transcript: { type: Type.STRING },
+    summary: { type: Type.STRING },
+    estimatedBand: { type: Type.NUMBER },
+    scores: {
+      type: Type.OBJECT,
+      properties: {
+        fluency: { type: Type.NUMBER },
+        lexicalResource: { type: Type.NUMBER },
+        grammar: { type: Type.NUMBER },
+        pronunciation: { type: Type.NUMBER },
+      },
+      required: ["fluency", "lexicalResource", "grammar", "pronunciation"],
+    },
+    strengths: { type: Type.ARRAY, items: { type: Type.STRING } },
+    priorities: { type: Type.ARRAY, items: { type: Type.STRING } },
+    improvedAnswer: { type: Type.STRING },
+    studyNote: { type: Type.STRING },
+  },
+  required: ["transcript", "summary", "estimatedBand", "scores", "strengths", "priorities", "improvedAnswer", "studyNote"],
 };
 
 function pcmBase64ToWavBase64(pcmBase64: string, sampleRate = 24000, numChannels = 1, bitsPerSample = 16): string {
@@ -264,6 +297,32 @@ async function generateSpeech(text: string) {
   throw new Error(aiConfig.error || "AI provider is not configured.");
 }
 
+async function generateSpeakingEvaluation(input: ReturnType<typeof readSpeakingEvaluationInput>) {
+  if (aiConfig.provider !== "gemini" || !geminiAI) {
+    const error = new Error("Speaking audio feedback currently requires the Gemini provider.") as Error & { status?: number };
+    error.status = 503;
+    throw error;
+  }
+
+  const response = await withTimeout(geminiAI.models.generateContent({
+    model: aiConfig.chatModel,
+    contents: [{
+      role: "user",
+      parts: [
+        { text: buildSpeakingEvaluationPrompt(input) },
+        { inlineData: { data: input.audioBase64, mimeType: input.mimeType } },
+      ],
+    }],
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: SPEAKING_EVALUATION_SCHEMA,
+    },
+  }), SPEAKING_TIMEOUT_MS, "Gemini speaking evaluation request");
+
+  if (!response?.text) throw new Error("No speaking evaluation from model");
+  return normalizeSpeakingEvaluation(JSON.parse(response.text.trim()));
+}
+
 function getFirebaseWebApiKey() {
   return process.env.FIREBASE_WEB_API_KEY
     || process.env.VITE_FIREBASE_API_KEY;
@@ -420,6 +479,50 @@ app.post("/api/chat", async (req, res) => {
     if (isEmailVerificationRequiredError(error)) return sendEmailVerificationRequired(res);
     console.error("Chat Error:", error);
     res.status(500).json({ error: "Failed to generate response. Please try again later." });
+  }
+});
+
+app.post("/api/practice/speaking/evaluate", async (req, res) => {
+  try {
+    const input = readSpeakingEvaluationInput(req.body);
+    if (aiConfig.error) return res.status(500).json({ error: aiConfig.error });
+    const billingSubject = await getBillingSubject(req, { requireVerifiedEmail: true });
+    const billing = await billingStore.getBillingSummary(billingSubject);
+    if (!canUseChat(billing)) return res.status(402).json({ error: "quota_exceeded", billing });
+
+    let evaluation;
+    let retries = 2;
+    while (retries > 0) {
+      try {
+        evaluation = await generateSpeakingEvaluation(input);
+        break;
+      } catch (error) {
+        if (isOperationTimeoutError(error)) {
+          return res.status(503).json({ error: "Hina took too long to review the recording. Please try again.", code: 503 });
+        }
+        if (isQuotaExhaustedError(error)) {
+          return res.status(429).json({ error: "The Gemini API key has no remaining quota for speaking feedback.", code: 429 });
+        }
+        if (!isRetryableAIError(error)) throw error;
+        retries -= 1;
+        if (retries === 0) {
+          return res.status(503).json({ error: "Speaking feedback is temporarily busy. Please try again shortly.", code: 503 });
+        }
+        const { delayMs } = getExternalRetryDelayMs(error, 1500);
+        await new Promise((resolve) => setTimeout(resolve, Math.min(delayMs, 5000)));
+      }
+    }
+
+    if (!evaluation) throw new Error("No speaking evaluation generated.");
+    const nextBilling = await billingStore.incrementChatUsage(billingSubject);
+    res.json({ evaluation, billing: nextBilling });
+  } catch (error) {
+    if (isEmailVerificationRequiredError(error)) return sendEmailVerificationRequired(res);
+    const status = getErrorStatus(error);
+    if (status === 400) return res.status(400).json({ error: getErrorMessage(error) });
+    if (status === 503) return res.status(503).json({ error: getErrorMessage(error) });
+    console.error("Speaking Evaluation Error:", describeAIError(error));
+    res.status(500).json({ error: "Hina could not review this answer. Please try again later." });
   }
 });
 

@@ -40,9 +40,46 @@ export interface BillingSummary {
   resetAt: string;
 }
 
-export type HinaSpaceView = "space" | "moments" | "notes" | "wishlist" | "relationship";
+export type HinaSpaceView = "space" | "practice" | "moments" | "notes" | "wishlist" | "relationship";
 export type AppView = "chat" | HinaSpaceView;
 export type WishlistKind = "goal" | "hook" | "place" | "note";
+
+export type SpeakingPart = 1 | 2 | 3;
+
+export interface SpeakingQuestion {
+  id: string;
+  part: SpeakingPart;
+  eyebrow: string;
+  question: string;
+  cues: string[];
+  prepSeconds: number;
+  answerSeconds: number;
+}
+
+export interface SpeakingScores {
+  fluency: number;
+  lexicalResource: number;
+  grammar: number;
+  pronunciation: number;
+}
+
+export interface SpeakingEvaluation {
+  transcript: string;
+  summary: string;
+  estimatedBand: number;
+  scores: SpeakingScores;
+  strengths: string[];
+  priorities: string[];
+  improvedAnswer: string;
+  studyNote: string;
+}
+
+export interface SpeakingEvaluationInput {
+  questionId: string;
+  audioBase64: string;
+  mimeType: string;
+  nativeLanguage: LanguageCode;
+}
 
 export interface WishlistItem {
   id: string;
