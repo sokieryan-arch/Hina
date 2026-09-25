@@ -112,11 +112,67 @@ export interface SpeakingAttempt {
   studyCards: SpeakingStudyCard[];
 }
 
-export interface WritingTask2Prompt {
+export type WritingTaskType = "task1" | "task2";
+
+interface WritingPromptBase {
   id: string;
   topic: string;
   question: string;
+  taskType: WritingTaskType;
+  minimumWords: number;
+  durationMinutes: number;
 }
+
+export interface WritingChartSeries {
+  name: string;
+  values: number[];
+}
+
+export type WritingTask1Visual =
+  | {
+    kind: "line" | "bar";
+    title: string;
+    unit: string;
+    labels: string[];
+    series: WritingChartSeries[];
+  }
+  | {
+    kind: "pie";
+    title: string;
+    sets: Array<{ label: string; values: Array<{ name: string; value: number }> }>;
+  }
+  | {
+    kind: "table";
+    title: string;
+    columns: string[];
+    rows: Array<{ label: string; values: number[] }>;
+    unit: string;
+  }
+  | {
+    kind: "map";
+    title: string;
+    panels: Array<{
+      label: string;
+      features: Array<{ label: string; x: number; y: number; width: number; height: number; tone: "green" | "blue" | "amber" | "rose" | "neutral" }>;
+    }>;
+  }
+  | {
+    kind: "process";
+    title: string;
+    steps: Array<{ title: string; detail: string }>;
+  };
+
+export interface WritingTask1Prompt extends WritingPromptBase {
+  taskType: "task1";
+  visual: WritingTask1Visual;
+  sourceFacts: string[];
+}
+
+export interface WritingTask2Prompt extends WritingPromptBase {
+  taskType: "task2";
+}
+
+export type WritingPrompt = WritingTask1Prompt | WritingTask2Prompt;
 
 export interface WritingScores {
   taskResponse: number;
@@ -136,6 +192,9 @@ export interface WritingEvidence {
   wordCount: number;
   scoreCeiling: number | null;
   confidence: "low" | "medium" | "high";
+  taskType: WritingTaskType;
+  minimumWords: number;
+  unsupportedNumbers: string[];
 }
 
 export interface WritingEvaluation {
@@ -158,6 +217,7 @@ export interface WritingEvaluationInput {
 
 export interface WritingAttempt {
   id: string;
+  taskType: WritingTaskType;
   questionId: string;
   question: string;
   topic: string;

@@ -7,6 +7,7 @@ import { WritingComparison, WritingHistory } from "./WritingHistory";
 
 const first: WritingAttempt = {
   id: "first",
+  taskType: "task2",
   questionId: "task2-test",
   question: "Discuss both views.",
   topic: "Education",
@@ -28,14 +29,21 @@ const second: WritingAttempt = {
 };
 
 test("writing history renders averages and rewrite action", () => {
-  const markup = renderToStaticMarkup(React.createElement(WritingHistory, { attempts: [second, first], onPracticeAgain: () => {} }));
+  const markup = renderToStaticMarkup(React.createElement(WritingHistory, { attempts: [second, first], taskType: "task2", title: "The argument gets sharper.", onPracticeAgain: () => {} }));
   assert.match(markup, /Draft history/);
   assert.match(markup, /6\.0/);
   assert.match(markup, /Rewrite/);
 });
 
 test("writing comparison renders criterion movement", () => {
-  const markup = renderToStaticMarkup(React.createElement(WritingComparison, { previous: first, current: second }));
+  const markup = renderToStaticMarkup(React.createElement(WritingComparison, { previous: first, current: second, taskType: "task2" }));
   assert.match(markup, /Same task comparison/);
   assert.match(markup, /\+1\.0 overall/);
+});
+
+test("Task 1 history uses Task Achievement language", () => {
+  const task1Attempt = { ...first, taskType: "task1" as const, questionId: "task1-test" };
+  const markup = renderToStaticMarkup(React.createElement(WritingHistory, { attempts: [task1Attempt], taskType: "task1", title: "Descriptions get more selective.", onPracticeAgain: () => {} }));
+  assert.match(markup, /Task achievement/);
+  assert.match(markup, /Descriptions get more selective/);
 });

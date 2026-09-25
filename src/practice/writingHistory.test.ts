@@ -7,9 +7,10 @@ import {
   loadWritingAttempts,
   MAX_WRITING_ATTEMPTS,
   saveWritingAttempts,
+  writingAttemptsForTask,
 } from "./writingHistory";
 
-const prompt: WritingTask2Prompt = { id: "task2-test", topic: "Test", question: "Discuss both views." };
+const prompt: WritingTask2Prompt = { id: "task2-test", topic: "Test", question: "Discuss both views.", taskType: "task2", minimumWords: 250, durationMinutes: 40 };
 const evaluation: WritingEvaluation = {
   summary: "A developing response.",
   estimatedBand: 5.5,
@@ -19,7 +20,7 @@ const evaluation: WritingEvaluation = {
   sentenceFeedback: [],
   improvedParagraph: "A clearer paragraph.",
   studyCards: [],
-  evidence: { wordCount: 260, scoreCeiling: null, confidence: "medium" },
+  evidence: { wordCount: 260, scoreCeiling: null, confidence: "medium", taskType: "task2", minimumWords: 250, unsupportedNumbers: [] },
 };
 
 test("writing history keeps recent account-scoped attempts", () => {
@@ -37,6 +38,13 @@ test("writing history keeps recent account-scoped attempts", () => {
   assert.equal(loaded.length, MAX_WRITING_ATTEMPTS);
   assert.equal(loaded[0].id, `attempt-${MAX_WRITING_ATTEMPTS + 1}`);
   assert.equal(loadWritingAttempts(storage, "writer-2").length, 0);
+});
+
+test("writing history separates Task 1 and Task 2 attempts", () => {
+  const task2Attempt = createWritingAttempt("task2", prompt, "Essay", evaluation);
+  const task1Attempt = { ...task2Attempt, id: "task1", taskType: "task1" as const };
+  assert.deepEqual(writingAttemptsForTask([task1Attempt, task2Attempt], "task1").map((attempt) => attempt.id), ["task1"]);
+  assert.deepEqual(writingAttemptsForTask([task1Attempt, task2Attempt], "task2").map((attempt) => attempt.id), ["task2"]);
 });
 
 test("writing history calculates criterion averages", () => {

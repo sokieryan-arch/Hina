@@ -1,4 +1,4 @@
-import type { WritingAttempt, WritingEvaluation, WritingScores, WritingTask2Prompt } from "../types";
+import type { WritingAttempt, WritingEvaluation, WritingPrompt, WritingScores, WritingTaskType } from "../types";
 
 const STORAGE_PREFIX = "hina-writing-attempts-v1";
 export const MAX_WRITING_ATTEMPTS = 20;
@@ -13,10 +13,10 @@ export function writingHistoryStorageKey(ownerId: string) {
   return `${STORAGE_PREFIX}:${ownerId || "guest"}`;
 }
 
-function isAttempt(value: unknown): value is WritingAttempt {
-  if (!value || typeof value !== "object") return false;
+function parseAttempt(value: unknown): WritingAttempt | null {
+  if (!value || typeof value !== "object") return null;
   const attempt = value as Partial<WritingAttempt>;
-  return typeof attempt.id === "string"
+  const valid = typeof attempt.id === "string"
     && typeof attempt.questionId === "string"
     && typeof attempt.question === "string"
     && typeof attempt.topic === "string"
@@ -30,15 +30,23 @@ function isAttempt(value: unknown): value is WritingAttempt {
     && Array.isArray(attempt.sentenceFeedback)
     && typeof attempt.improvedParagraph === "string"
     && Array.isArray(attempt.studyCards);
+  if (!valid) return null;
+  return {
+    ...attempt,
+    taskType: attempt.taskType === "task1" ? "task1" : "task2",
+  } as WritingAttempt;
 }
 
 export function loadWritingAttempts(storage: StorageLike | null, ownerId: string) {
   if (!storage) return [];
   try {
     const parsed = JSON.parse(storage.getItem(writingHistoryStorageKey(ownerId)) || "[]");
-    return Array.isArray(parsed)
-      ? parsed.filter(isAttempt).sort((left, right) => right.createdAt - left.createdAt).slice(0, MAX_WRITING_ATTEMPTS)
-      : [];
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map(parseAttempt)
+      .filter((attempt): attempt is WritingAttempt => Boolean(attempt))
+      .sort((left, right) => right.createdAt - left.createdAt)
+      .slice(0, MAX_WRITING_ATTEMPTS);
   } catch {
     return [];
   }
@@ -52,13 +60,14 @@ export function saveWritingAttempts(storage: StorageLike | null, ownerId: string
 
 export function createWritingAttempt(
   id: string,
-  prompt: WritingTask2Prompt,
+  prompt: WritingPrompt,
   essay: string,
   evaluation: WritingEvaluation,
   createdAt = Date.now(),
 ): WritingAttempt {
   return {
     id,
+    taskType: prompt.taskType,
     questionId: prompt.id,
     question: prompt.question,
     topic: prompt.topic,
@@ -94,4 +103,8 @@ export function averageWritingScores(attempts: WritingAttempt[]) {
       grammar: rounded(total.scores.grammar),
     },
   };
+}
+
+export function writingAttemptsForTask(attempts: WritingAttempt[], taskType: WritingTaskType) {
+  return attempts.filter((attempt) => attempt.taskType === taskType);
 }

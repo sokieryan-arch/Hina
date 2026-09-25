@@ -491,6 +491,7 @@ async function generateWritingEvaluation(input: ReturnType<typeof readWritingEva
   return normalizeWritingEvaluation(parsed, {
     essay: input.essay,
     nativeLanguage: input.nativeLanguage,
+    questionId: input.questionId,
   });
 }
 

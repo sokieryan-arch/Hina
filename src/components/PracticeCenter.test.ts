@@ -4,7 +4,7 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { PracticeCenter } from "./PracticeCenter";
 
-test("practice center offers speaking and Writing Task 2", () => {
+test("practice center offers speaking and both writing tasks", () => {
   const markup = renderToStaticMarkup(React.createElement(PracticeCenter, {
     ownerId: "preview",
     nativeLanguage: "zh-CN",
@@ -14,6 +14,7 @@ test("practice center offers speaking and Writing Task 2", () => {
     onSaveWritingStudyCards: () => {},
   }));
   assert.match(markup, /Speaking/);
-  assert.match(markup, /Writing Task 2/);
-  assert.match(markup, /40-minute timer/);
+  assert.match(markup, />Writing</);
+  assert.match(markup, /Task 1 visuals/);
+  assert.match(markup, /Task 2 argument/);
 });

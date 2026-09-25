@@ -1,6 +1,6 @@
 import { FileClock, RotateCcw, Trash2, TrendingUp } from "lucide-react";
 import { averageWritingScores } from "../practice/writingHistory";
-import type { WritingAttempt, WritingScores } from "../types";
+import type { WritingAttempt, WritingScores, WritingTaskType } from "../types";
 
 const SCORE_LABELS: Array<{ key: keyof WritingScores; label: string }> = [
   { key: "taskResponse", label: "Task response" },
@@ -15,8 +15,16 @@ function scoreDelta(current: number, previous: number) {
   return delta > 0 ? `+${delta.toFixed(1)}` : delta.toFixed(1);
 }
 
-export function WritingHistory({ attempts, onPracticeAgain, onClear }: {
+function scoreLabels(taskType: WritingTaskType) {
+  return SCORE_LABELS.map((item) => item.key === "taskResponse"
+    ? { ...item, label: taskType === "task1" ? "Task achievement" : "Task response" }
+    : item);
+}
+
+export function WritingHistory({ attempts, taskType, title, onPracticeAgain, onClear }: {
   attempts: WritingAttempt[];
+  taskType: WritingTaskType;
+  title: string;
   onPracticeAgain: (attempt: WritingAttempt) => void;
   onClear?: () => void;
 }) {
@@ -28,7 +36,7 @@ export function WritingHistory({ attempts, onPracticeAgain, onClear }: {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#86652A] dark:text-[#d6bdec]"><FileClock size={15} /> Draft history</p>
-          <h3 id="writing-history-title" className="mt-2 font-display text-2xl font-semibold text-[#2E2A27] dark:text-white">The argument gets sharper.</h3>
+          <h3 id="writing-history-title" className="mt-2 font-display text-2xl font-semibold text-[#2E2A27] dark:text-white">{title}</h3>
         </div>
         <div className="text-right">
           <strong className="font-display text-4xl font-semibold text-[#315E58] dark:text-[#a9ddd3]">{averages.estimatedBand.toFixed(1)}</strong>
@@ -42,7 +50,7 @@ export function WritingHistory({ attempts, onPracticeAgain, onClear }: {
       </div>
 
       <div className="mt-5 grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-[#E8E2D6] bg-[#E8E2D6] dark:border-[#3a2347] dark:bg-[#3a2347] sm:grid-cols-4">
-        {SCORE_LABELS.map(({ key, label }) => (
+        {scoreLabels(taskType).map(({ key, label }) => (
           <div key={key} className="bg-white px-4 py-3 dark:bg-[#291a33]">
             <strong className="text-lg text-[#35312F] dark:text-white">{averages.scores[key].toFixed(1)}</strong>
             <span className="ml-2 text-xs text-[#8A817C] dark:text-[#a58ebd]">{label}</span>
@@ -68,7 +76,7 @@ export function WritingHistory({ attempts, onPracticeAgain, onClear }: {
   );
 }
 
-export function WritingComparison({ previous, current }: { previous: WritingAttempt; current: WritingAttempt }) {
+export function WritingComparison({ previous, current, taskType }: { previous: WritingAttempt; current: WritingAttempt; taskType: WritingTaskType }) {
   return (
     <section className="mt-7 border-y border-[#C8DDD8] bg-[#F1F8F6] px-4 py-5 dark:border-[#2e5661] dark:bg-[#17303a] sm:px-5" aria-labelledby="writing-comparison-title">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -81,7 +89,7 @@ export function WritingComparison({ previous, current }: { previous: WritingAtte
         </strong>
       </div>
       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {SCORE_LABELS.map(({ key, label }) => (
+        {scoreLabels(taskType).map(({ key, label }) => (
           <div key={key}>
             <span className="block text-[11px] font-semibold text-[#6C817C] dark:text-[#9dc2ba]">{label}</span>
             <strong className="mt-1 block text-sm text-[#294F49] dark:text-white">{current.scores[key].toFixed(1)} <span className="font-medium opacity-65">({scoreDelta(current.scores[key], previous.scores[key])})</span></strong>

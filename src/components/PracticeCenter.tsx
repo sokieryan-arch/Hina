@@ -9,6 +9,7 @@ import type {
   SpeakingStudyCard,
   WritingEvaluation,
   WritingEvaluationInput,
+  WritingTaskType,
 } from "../types";
 import { SpeakingPractice } from "./SpeakingPractice";
 import { WritingPractice } from "./WritingPractice";
@@ -19,7 +20,7 @@ interface PracticeCenterProps {
   onEvaluateSpeaking: (input: SpeakingEvaluationInput) => Promise<SpeakingEvaluation>;
   onSaveSpeakingStudyCards: (cards: SpeakingStudyCard[], context: { part: SpeakingPart; question: string }) => Promise<void> | void;
   onEvaluateWriting: (input: WritingEvaluationInput) => Promise<WritingEvaluation>;
-  onSaveWritingStudyCards: (cards: SpeakingStudyCard[], context: { question: string }) => Promise<void> | void;
+  onSaveWritingStudyCards: (cards: SpeakingStudyCard[], context: { question: string; taskType: WritingTaskType }) => Promise<void> | void;
 }
 
 export function PracticeCenter({
@@ -60,7 +61,7 @@ export function PracticeCenter({
             </button>
             <button type="button" onClick={() => setTool("writing")} className="group flex w-full items-center gap-4 py-6 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF9F1C] sm:gap-6">
               <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-[#BDDCD5] bg-[#EAF5F2] text-[#315E58] dark:border-[#2e5661] dark:bg-[#17303a] dark:text-[#a9ddd3]"><FilePenLine size={25} /></span>
-              <span className="min-w-0 flex-1"><span className="block text-lg font-bold text-[#35312F] dark:text-white">Writing Task 2</span><span className="mt-1 block text-sm leading-6 text-[#7C746F] dark:text-[#bda9ca]">Write freely or use a 40-minute timer, then revise from exact sentence evidence.</span></span>
+              <span className="min-w-0 flex-1"><span className="block text-lg font-bold text-[#35312F] dark:text-white">Writing</span><span className="mt-1 block text-sm leading-6 text-[#7C746F] dark:text-[#bda9ca]">Describe Task 1 visuals or build a Task 2 argument, then revise from exact sentence evidence.</span></span>
               <ChevronRight size={20} className="shrink-0 text-[#B5A48B] transition-transform group-hover:translate-x-1" />
             </button>
           </div>

@@ -5,7 +5,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { nanoid } from "nanoid";
-import { AppView, BillingSummary, HinaSpaceView, LanguageCode, LanguageSettings, Message, ProactiveSettings, SpeakingEvaluation, SpeakingEvaluationInput, SpeakingPart, SpeakingStudyCard, UserProfile, WishlistItem, WritingEvaluation, WritingEvaluationInput } from "./types";
+import { AppView, BillingSummary, HinaSpaceView, LanguageCode, LanguageSettings, Message, ProactiveSettings, SpeakingEvaluation, SpeakingEvaluationInput, SpeakingPart, SpeakingStudyCard, UserProfile, WishlistItem, WritingEvaluation, WritingEvaluationInput, WritingTaskType } from "./types";
 import { ChatMessage } from "./components/ChatMessage";
 import { SettingsModal } from "./components/SettingsModal";
 import { AuthPanel } from "./components/AuthPanel";
@@ -450,7 +450,7 @@ export default function App() {
 
   const saveWritingStudyCards = useCallback(async (
     cards: SpeakingStudyCard[],
-    context: { question: string },
+    context: { question: string; taskType: WritingTaskType },
   ) => {
     if (!user) return;
     const categoryLabels: Partial<Record<SpeakingStudyCard["kind"], string>> = {
@@ -460,7 +460,8 @@ export default function App() {
     };
     await Promise.all(cards.map((card, index) => {
       const timestamp = Date.now() + index;
-      const text = `${categoryLabels[card.kind] || "Writing focus"} · IELTS Writing Task 2\n${card.title}\n\n${card.body}\n\nPrompt: ${context.question}`;
+      const taskLabel = context.taskType === "task1" ? "IELTS Academic Writing Task 1" : "IELTS Writing Task 2";
+      const text = `${categoryLabels[card.kind] || "Writing focus"} · ${taskLabel}\n${card.title}\n\n${card.body}\n\nPrompt: ${context.question}`;
       return setDoc(doc(db, `users/${user.uid}/messages`, nanoid()), {
         role: "model",
         text,

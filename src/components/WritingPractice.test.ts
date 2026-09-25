@@ -4,7 +4,7 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { WritingPractice } from "./WritingPractice";
 
-test("writing practice renders original Task 2 prompts and history disclaimer", () => {
+test("writing practice offers Academic Task 1 and Task 2 workspaces", () => {
   const markup = renderToStaticMarkup(React.createElement(WritingPractice, {
     ownerId: "preview",
     nativeLanguage: "zh-CN",
@@ -12,8 +12,8 @@ test("writing practice renders original Task 2 prompts and history disclaimer", 
     onEvaluate: async () => { throw new Error("not used"); },
     onSaveStudyCards: () => {},
   }));
-  assert.match(markup, /IELTS Writing Task 2/);
-  assert.match(markup, /Working from home/);
-  assert.match(markup, /original/);
+  assert.match(markup, /Academic Task 1/);
+  assert.match(markup, /Task 2/);
+  assert.match(markup, /Charts, tables, maps, and processes/);
   assert.match(markup, /not an official IELTS score/);
 });

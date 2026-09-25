@@ -59,7 +59,8 @@ test("HinaSpace practice view opens the speaking and writing practice center", (
 
   assert.match(markup, /IELTS Practice/);
   assert.match(markup, /Speaking/);
-  assert.match(markup, /Writing Task 2/);
+  assert.match(markup, />Writing</);
+  assert.match(markup, /Task 1 visuals/);
 });
 
 test("HinaSpace study view derives notes and category tabs from chat messages", () => {

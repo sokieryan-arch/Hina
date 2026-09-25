@@ -15,7 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { nanoid } from "nanoid";
-import type { HinaSpaceView, LanguageCode, Message, SpeakingEvaluation, SpeakingEvaluationInput, SpeakingStudyCard, SpeakingPart, WishlistItem, WishlistKind, WritingEvaluation, WritingEvaluationInput } from "../types";
+import type { HinaSpaceView, LanguageCode, Message, SpeakingEvaluation, SpeakingEvaluationInput, SpeakingStudyCard, SpeakingPart, WishlistItem, WishlistKind, WritingEvaluation, WritingEvaluationInput, WritingTaskType } from "../types";
 import { uiText } from "../i18n/ui";
 import { PracticeCenter } from "./PracticeCenter";
 
@@ -28,7 +28,7 @@ interface HinaSpaceProps {
   onEvaluateSpeaking?: (input: SpeakingEvaluationInput) => Promise<SpeakingEvaluation>;
   onSaveStudyCards?: (cards: SpeakingStudyCard[], context: { part: SpeakingPart; question: string }) => Promise<void> | void;
   onEvaluateWriting?: (input: WritingEvaluationInput) => Promise<WritingEvaluation>;
-  onSaveWritingStudyCards?: (cards: SpeakingStudyCard[], context: { question: string }) => Promise<void> | void;
+  onSaveWritingStudyCards?: (cards: SpeakingStudyCard[], context: { question: string; taskType: WritingTaskType }) => Promise<void> | void;
   practiceOwnerId?: string;
   displayLanguage: LanguageCode;
   nativeLanguage?: LanguageCode;
