@@ -1,6 +1,6 @@
 import type { SpeakingAttempt, SpeakingEvaluation, SpeakingQuestion, SpeakingScores } from "../types";
 
-const STORAGE_PREFIX = "hina-speaking-attempts-v1";
+const STORAGE_PREFIX = "hina-speaking-attempts-v2";
 export const MAX_SPEAKING_ATTEMPTS = 30;
 
 interface StorageLike {
