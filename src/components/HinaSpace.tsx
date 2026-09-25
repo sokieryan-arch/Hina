@@ -15,7 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { nanoid } from "nanoid";
-import type { HinaSpaceView, LanguageCode, Message, SpeakingEvaluation, SpeakingEvaluationInput, SpeakingStudyCard, SpeakingPart, WishlistItem, WishlistKind, WritingEvaluation, WritingEvaluationInput, WritingTaskType } from "../types";
+import type { HinaSpaceView, LanguageCode, Message, ObjectivePracticeSkill, SpeakingEvaluation, SpeakingEvaluationInput, SpeakingStudyCard, SpeakingPart, WishlistItem, WishlistKind, WritingEvaluation, WritingEvaluationInput, WritingTaskType } from "../types";
 import { uiText } from "../i18n/ui";
 import { PracticeCenter } from "./PracticeCenter";
 
@@ -29,6 +29,7 @@ interface HinaSpaceProps {
   onSaveStudyCards?: (cards: SpeakingStudyCard[], context: { part: SpeakingPart; question: string }) => Promise<void> | void;
   onEvaluateWriting?: (input: WritingEvaluationInput) => Promise<WritingEvaluation>;
   onSaveWritingStudyCards?: (cards: SpeakingStudyCard[], context: { question: string; taskType: WritingTaskType }) => Promise<void> | void;
+  onSaveObjectiveStudyCards?: (cards: SpeakingStudyCard[], context: { skill: ObjectivePracticeSkill }) => Promise<void> | void;
   practiceOwnerId?: string;
   displayLanguage: LanguageCode;
   nativeLanguage?: LanguageCode;
@@ -493,6 +494,7 @@ export function HinaSpace({
   onSaveStudyCards = () => {},
   onEvaluateWriting = async () => { throw new Error("Writing feedback is unavailable."); },
   onSaveWritingStudyCards = () => {},
+  onSaveObjectiveStudyCards = () => {},
   practiceOwnerId = "preview",
   displayLanguage,
   nativeLanguage = "zh-CN",
@@ -506,6 +508,7 @@ export function HinaSpace({
       onSaveSpeakingStudyCards={onSaveStudyCards}
       onEvaluateWriting={onEvaluateWriting}
       onSaveWritingStudyCards={onSaveWritingStudyCards}
+      onSaveObjectiveStudyCards={onSaveObjectiveStudyCards}
     />
   );
   if (view === "moments") return <MomentsPage displayLanguage={displayLanguage} />;

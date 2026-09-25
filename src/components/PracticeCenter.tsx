@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { motion } from "motion/react";
-import { AudioLines, ChevronRight, FilePenLine, Target } from "lucide-react";
+import { AudioLines, BookOpenCheck, ChevronRight, FilePenLine, Headphones, Target } from "lucide-react";
 import type {
   LanguageCode,
+  ObjectivePracticeSkill,
   SpeakingEvaluation,
   SpeakingEvaluationInput,
   SpeakingPart,
@@ -13,6 +14,8 @@ import type {
 } from "../types";
 import { SpeakingPractice } from "./SpeakingPractice";
 import { WritingPractice } from "./WritingPractice";
+import { ReadingPractice } from "./ReadingPractice";
+import { ListeningPractice } from "./ListeningPractice";
 
 interface PracticeCenterProps {
   ownerId: string;
@@ -21,6 +24,7 @@ interface PracticeCenterProps {
   onSaveSpeakingStudyCards: (cards: SpeakingStudyCard[], context: { part: SpeakingPart; question: string }) => Promise<void> | void;
   onEvaluateWriting: (input: WritingEvaluationInput) => Promise<WritingEvaluation>;
   onSaveWritingStudyCards: (cards: SpeakingStudyCard[], context: { question: string; taskType: WritingTaskType }) => Promise<void> | void;
+  onSaveObjectiveStudyCards: (cards: SpeakingStudyCard[], context: { skill: ObjectivePracticeSkill }) => Promise<void> | void;
 }
 
 export function PracticeCenter({
@@ -30,14 +34,21 @@ export function PracticeCenter({
   onSaveSpeakingStudyCards,
   onEvaluateWriting,
   onSaveWritingStudyCards,
+  onSaveObjectiveStudyCards,
 }: PracticeCenterProps) {
-  const [tool, setTool] = useState<"home" | "speaking" | "writing">("home");
+  const [tool, setTool] = useState<"home" | "listening" | "reading" | "writing" | "speaking">("home");
 
   if (tool === "speaking") {
     return <SpeakingPractice ownerId={ownerId} nativeLanguage={nativeLanguage} onExit={() => setTool("home")} onEvaluate={onEvaluateSpeaking} onSaveStudyCards={onSaveSpeakingStudyCards} />;
   }
   if (tool === "writing") {
     return <WritingPractice ownerId={ownerId} nativeLanguage={nativeLanguage} onExit={() => setTool("home")} onEvaluate={onEvaluateWriting} onSaveStudyCards={onSaveWritingStudyCards} />;
+  }
+  if (tool === "reading") {
+    return <ReadingPractice ownerId={ownerId} onExit={() => setTool("home")} onSaveStudyCards={onSaveObjectiveStudyCards} />;
+  }
+  if (tool === "listening") {
+    return <ListeningPractice ownerId={ownerId} onExit={() => setTool("home")} onSaveStudyCards={onSaveObjectiveStudyCards} />;
   }
 
   return (
@@ -54,6 +65,16 @@ export function PracticeCenter({
           </div>
 
           <div className="mt-9 divide-y divide-[#E8E2D6] border-y border-[#E8E2D6] dark:divide-[#3a2347] dark:border-[#3a2347]">
+            <button type="button" onClick={() => setTool("listening")} className="group flex w-full items-center gap-4 py-6 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF9F1C] sm:gap-6">
+              <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-[#D7C5E5] bg-[#F4EFF8] text-[#654985] dark:border-[#5a4669] dark:bg-[#33263e] dark:text-[#d6bdec]"><Headphones size={25} /></span>
+              <span className="min-w-0 flex-1"><span className="block text-lg font-bold text-[#35312F] dark:text-white">Listening</span><span className="mt-1 block text-sm leading-6 text-[#7C746F] dark:text-[#bda9ca]">Play four original sections once, answer forty questions, then unlock the transcript and evidence.</span></span>
+              <ChevronRight size={20} className="shrink-0 text-[#B5A48B] transition-transform group-hover:translate-x-1" />
+            </button>
+            <button type="button" onClick={() => setTool("reading")} className="group flex w-full items-center gap-4 py-6 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF9F1C] sm:gap-6">
+              <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-[#BDDCD5] bg-[#EAF5F2] text-[#315E58] dark:border-[#2e5661] dark:bg-[#17303a] dark:text-[#a9ddd3]"><BookOpenCheck size={25} /></span>
+              <span className="min-w-0 flex-1"><span className="block text-lg font-bold text-[#35312F] dark:text-white">Academic Reading</span><span className="mt-1 block text-sm leading-6 text-[#7C746F] dark:text-[#bda9ca]">Work through three original passages, then review every missed answer against exact textual evidence.</span></span>
+              <ChevronRight size={20} className="shrink-0 text-[#B5A48B] transition-transform group-hover:translate-x-1" />
+            </button>
             <button type="button" onClick={() => setTool("speaking")} className="group flex w-full items-center gap-4 py-6 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF9F1C] sm:gap-6">
               <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-[#E6C98A] bg-[#FFF8E7] text-[#86652A] dark:border-[#5a4669] dark:bg-[#33263e] dark:text-[#f6d98e]"><AudioLines size={25} /></span>
               <span className="min-w-0 flex-1"><span className="block text-lg font-bold text-[#35312F] dark:text-white">Speaking</span><span className="mt-1 block text-sm leading-6 text-[#7C746F] dark:text-[#bda9ca]">Record Parts 1–3, receive evidence-based band feedback, and retry the same prompt.</span></span>

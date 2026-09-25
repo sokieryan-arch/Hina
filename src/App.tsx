@@ -5,7 +5,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { nanoid } from "nanoid";
-import { AppView, BillingSummary, HinaSpaceView, LanguageCode, LanguageSettings, Message, ProactiveSettings, SpeakingEvaluation, SpeakingEvaluationInput, SpeakingPart, SpeakingStudyCard, UserProfile, WishlistItem, WritingEvaluation, WritingEvaluationInput, WritingTaskType } from "./types";
+import { AppView, BillingSummary, HinaSpaceView, LanguageCode, LanguageSettings, Message, ObjectivePracticeSkill, ProactiveSettings, SpeakingEvaluation, SpeakingEvaluationInput, SpeakingPart, SpeakingStudyCard, UserProfile, WishlistItem, WritingEvaluation, WritingEvaluationInput, WritingTaskType } from "./types";
 import { ChatMessage } from "./components/ChatMessage";
 import { SettingsModal } from "./components/SettingsModal";
 import { AuthPanel } from "./components/AuthPanel";
@@ -472,6 +472,25 @@ export default function App() {
     }));
   }, [user]);
 
+  const saveObjectiveStudyCards = useCallback(async (
+    cards: SpeakingStudyCard[],
+    context: { skill: ObjectivePracticeSkill },
+  ) => {
+    if (!user) return;
+    const skillLabel = context.skill === "reading" ? "IELTS Academic Reading" : "IELTS Listening";
+    await Promise.all(cards.map((card, index) => {
+      const timestamp = Date.now() + index;
+      const text = `Review · ${skillLabel}\n${card.title}\n\n${card.body}`;
+      return setDoc(doc(db, `users/${user.uid}/messages`, nanoid()), {
+        role: "model",
+        text,
+        type: "insight",
+        timestamp,
+        createdAt: serverTimestamp(),
+      });
+    }));
+  }, [user]);
+
   const handleProactiveTrigger = useCallback(async () => {
     if (isTyping || !proactiveSettings.enabled) return;
     setIsTyping(true);
@@ -856,6 +875,7 @@ export default function App() {
           onSaveStudyCards={savePracticeStudyCards}
           onEvaluateWriting={evaluateWriting}
           onSaveWritingStudyCards={saveWritingStudyCards}
+          onSaveObjectiveStudyCards={saveObjectiveStudyCards}
           practiceOwnerId={user.uid}
           displayLanguage={displayLanguage}
           nativeLanguage={languageSettings.nativeLanguage}

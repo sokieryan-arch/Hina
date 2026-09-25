@@ -47,7 +47,7 @@ test("HinaSpace renders Practice above the four personal sections", () => {
   assert.match(markup, /❤️/);
 });
 
-test("HinaSpace practice view opens the speaking and writing practice center", () => {
+test("HinaSpace practice view opens all four IELTS skills", () => {
   const markup = renderToStaticMarkup(React.createElement(HinaSpace, {
     view: "practice",
     messages,
@@ -60,6 +60,8 @@ test("HinaSpace practice view opens the speaking and writing practice center", (
   assert.match(markup, /IELTS Practice/);
   assert.match(markup, /Speaking/);
   assert.match(markup, />Writing</);
+  assert.match(markup, /Listening/);
+  assert.match(markup, /Academic Reading/);
   assert.match(markup, /Task 1 visuals/);
 });
 

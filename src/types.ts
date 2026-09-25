@@ -232,6 +232,54 @@ export interface WritingAttempt {
   studyCards: SpeakingStudyCard[];
 }
 
+export type ObjectivePracticeSkill = "reading" | "listening";
+export type ObjectiveQuestionKind = "text" | "single";
+
+export interface ObjectiveQuestion {
+  id: string;
+  number: number;
+  kind: ObjectiveQuestionKind;
+  prompt: string;
+  options?: string[];
+  acceptedAnswers: string[];
+  evidence: string;
+  explanation: string;
+}
+
+export interface ReadingPassage {
+  id: string;
+  title: string;
+  subtitle: string;
+  paragraphs: Array<{ label: string; text: string }>;
+  questions: ObjectiveQuestion[];
+}
+
+export interface ListeningSegment {
+  speaker: string;
+  text: string;
+}
+
+export interface ListeningSection {
+  id: string;
+  title: string;
+  context: string;
+  segments: ListeningSegment[];
+  questions: ObjectiveQuestion[];
+}
+
+export interface ObjectiveAttempt {
+  id: string;
+  skill: ObjectivePracticeSkill;
+  createdAt: number;
+  correct: number;
+  total: number;
+  estimatedBand: number;
+  durationSeconds: number;
+  sectionScores: number[];
+  answers: Record<string, string>;
+  wrongQuestionIds: string[];
+}
+
 export interface WishlistItem {
   id: string;
   kind: WishlistKind;
