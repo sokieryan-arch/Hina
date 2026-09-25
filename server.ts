@@ -12,6 +12,7 @@ import {
 import { extractPaddleBillingUpdate, readPaddleServerConfig, verifyPaddleWebhookSignature } from "./src/server/paddle.js";
 import { isOperationTimeoutError, withTimeout } from "./src/server/timeout.js";
 import { buildHinaSystemInstruction, readLanguageSettings } from "./src/server/language.js";
+import { findSpeakingQuestion } from "./src/practice/speakingQuestions.js";
 import {
   buildSpeakingEvaluationPrompt,
   normalizeSpeakingEvaluation,
@@ -326,13 +327,19 @@ async function generateSpeakingEvaluation(input: ReturnType<typeof readSpeakingE
       ],
     }],
     config: {
+      temperature: 0,
+      seed: 17,
       responseMimeType: "application/json",
       responseSchema: SPEAKING_EVALUATION_SCHEMA,
     },
   }), SPEAKING_TIMEOUT_MS, "Gemini speaking evaluation request");
 
   if (!response?.text) throw new Error("No speaking evaluation from model");
-  return normalizeSpeakingEvaluation(JSON.parse(response.text.trim()));
+  const question = findSpeakingQuestion(input.questionId);
+  return normalizeSpeakingEvaluation(JSON.parse(response.text.trim()), {
+    part: question?.part,
+    nativeLanguage: input.nativeLanguage,
+  });
 }
 
 function getFirebaseWebApiKey() {

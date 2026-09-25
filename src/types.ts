@@ -71,6 +71,12 @@ export interface SpeakingStudyCard {
   body: string;
 }
 
+export interface SpeakingEvidence {
+  transcribedWordCount: number;
+  scoreCeiling: number | null;
+  confidence: "low" | "medium" | "high";
+}
+
 export interface SpeakingEvaluation {
   transcript: string;
   summary: string;
@@ -81,6 +87,7 @@ export interface SpeakingEvaluation {
   improvedAnswer: string;
   studyNote: string;
   studyCards: SpeakingStudyCard[];
+  evidence: SpeakingEvidence;
 }
 
 export interface SpeakingEvaluationInput {

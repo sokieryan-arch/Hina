@@ -514,6 +514,12 @@ export function SpeakingPractice({ ownerId, nativeLanguage, onEvaluate, onSaveSt
                 ))}
               </div>
 
+              {evaluation.evidence?.confidence === "low" && (
+                <p className="mt-4 rounded-lg border border-[#E8C98F] bg-[#FFF8E8] px-4 py-3 text-sm leading-6 text-[#765819] dark:border-[#6d5735] dark:bg-[#352c20] dark:text-[#f1d797]">
+                  Evidence check: {evaluation.evidence.transcribedWordCount} transcribed words. The score was capped at {evaluation.evidence.scoreCeiling?.toFixed(1)} because the recording did not contain enough language for a reliable higher-band estimate.
+                </p>
+              )}
+
               {comparisonAttempt && currentAttempt && <SpeakingComparison previous={comparisonAttempt} current={currentAttempt} />}
 
               <div className="mt-7 grid gap-7 sm:grid-cols-2">
@@ -521,6 +527,7 @@ export function SpeakingPractice({ ownerId, nativeLanguage, onEvaluate, onSaveSt
                   <h3 className="flex items-center gap-2 font-bold text-[#35312F] dark:text-white"><Check size={18} className="text-[#2F8B61]" /> What worked</h3>
                   <ul className="mt-3 space-y-2 text-sm leading-6 text-[#625B56] dark:text-[#d7cce0]">
                     {evaluation.strengths.map((item) => <li key={item}>· {item}</li>)}
+                    {evaluation.strengths.length === 0 && <li>No evidence-backed strength could be confirmed from this recording.</li>}
                   </ul>
                 </section>
                 <section>
@@ -531,7 +538,7 @@ export function SpeakingPractice({ ownerId, nativeLanguage, onEvaluate, onSaveSt
                 </section>
               </div>
 
-              <details className="mt-7 border-t border-[#E8E2D6] pt-5 dark:border-[#3a2347]">
+              <details open={evaluation.evidence?.confidence === "low"} className="mt-7 border-t border-[#E8E2D6] pt-5 dark:border-[#3a2347]">
                 <summary className="cursor-pointer font-bold text-[#35312F] dark:text-white">Transcript</summary>
                 <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-[#625B56] dark:text-[#d7cce0]">{evaluation.transcript}</p>
               </details>

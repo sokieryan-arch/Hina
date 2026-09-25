@@ -1,6 +1,6 @@
 import { isLanguageCode, languageNameInEnglish } from "../i18n/languages.js";
 import { findSpeakingQuestion } from "../practice/speakingQuestions.js";
-import type { LanguageCode, SpeakingEvaluation, SpeakingEvaluationInput, SpeakingScores, SpeakingStudyCard, SpeakingStudyCardKind } from "../types.js";
+import type { LanguageCode, SpeakingEvaluation, SpeakingEvaluationInput, SpeakingPart, SpeakingScores, SpeakingStudyCard, SpeakingStudyCardKind } from "../types.js";
 
 const ALLOWED_AUDIO_TYPES = new Set([
   "audio/mp4",
@@ -58,10 +58,15 @@ Practice prompt (Part ${question.part}):
 ${question.question}${cueText}
 
 Output contract:
-- Transcribe the response faithfully in English. Do not silently fix errors in the transcript.
+- Work in this order: first transcribe the complete response, then score only the language evidenced by that transcript and the attached audio.
+- Transcribe faithfully in English. Preserve fillers, repetitions, false starts, unfinished sentences, and grammatical errors. Mark substantial silence as [long pause]. Never rewrite the learner's words in the transcript.
 - Give conservative half-band estimates from 0 to 9 for fluency and coherence, lexical resource, grammatical range and accuracy, and pronunciation.
+- Apply a burden-of-proof rule: do not award 6.0 or above for a criterion unless the recording clearly demonstrates the relevant IELTS band descriptor. Simple but correct language alone is not evidence of lexical or grammatical range.
+- Long pauses, abandoned answers, very short responses, repetition, and off-topic material must lower fluency and may limit how confidently all four criteria can be scored.
+- Do not infer ideas, vocabulary, grammar, or pronunciation features that are not actually present. Do not reward unused recording time.
 - estimatedBand is the average impression, rounded to the nearest half band.
 - Explain summary, strengths, priorities, and studyNote in ${nativeLanguage}.
+- Every strength must use this exact format: Evidence: "exact words copied from the transcript" — explanation. If there is no exact supporting quote of at least two words, do not include that strength.
 - Keep improvedAnswer in natural English and preserve the speaker's original ideas rather than inventing a completely different story.
 - studyNote must be a compact reusable learning card with a short heading and 2-4 practical points.
 - Return exactly four studyCards, one for each kind: grammar, vocabulary, expression, and pronunciation.
@@ -87,6 +92,62 @@ function textList(value: unknown) {
     : [];
 }
 
+function normalizeEvidenceText(value: string) {
+  return value
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}'’-]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function transcriptWordCount(transcript: string) {
+  if (/no clear speech|no intelligible speech|\[silence\]|\[inaudible\]/i.test(transcript)) return 0;
+  return transcript.match(/[A-Za-z]+(?:['’-][A-Za-z]+)*/g)?.length || 0;
+}
+
+function evidenceBackedStrengths(value: unknown, transcript: string) {
+  const normalizedTranscript = normalizeEvidenceText(transcript);
+  return textList(value).filter((item) => {
+    const quotes = [...item.matchAll(/["“]([^"”]+)["”]/g)].map((match) => match[1]);
+    return quotes.some((quote) => {
+      const normalizedQuote = normalizeEvidenceText(quote);
+      const quoteWords = normalizedQuote.split(" ").filter(Boolean);
+      return quoteWords.length >= 2 && normalizedTranscript.includes(normalizedQuote);
+    });
+  });
+}
+
+export function speakingScoreCeiling(part: SpeakingPart, wordCount: number) {
+  const thresholds: Record<SpeakingPart, Array<[number, number]>> = {
+    1: [[1, 0], [4, 2], [10, 4], [20, 5], [30, 5.5]],
+    2: [[1, 0], [5, 2], [25, 4], [50, 5], [90, 5.5]],
+    3: [[1, 0], [5, 2], [15, 4], [30, 5], [45, 5.5]],
+  };
+  return thresholds[part].find(([minimum]) => wordCount < minimum)?.[1] ?? null;
+}
+
+function evidenceConfidence(part: SpeakingPart, wordCount: number, scoreCeiling: number | null) {
+  if (scoreCeiling !== null) return "low" as const;
+  const highEvidenceWords: Record<SpeakingPart, number> = { 1: 50, 2: 140, 3: 70 };
+  return wordCount >= highEvidenceWords[part] ? "high" as const : "medium" as const;
+}
+
+function evidenceLimitedSummary(language: LanguageCode, wordCount: number, scoreCeiling: number) {
+  const ceiling = scoreCeiling.toFixed(1);
+  const summaries: Record<LanguageCode, string> = {
+    en: `Only ${wordCount} English words were transcribed, so there is not enough evidence for a confident higher-band judgment. This practice estimate is capped at ${ceiling}; check the transcript below first.`,
+    "zh-CN": `本次录音只转写出 ${wordCount} 个英文词，可用于判断的语言证据不足，因此练习估分最高限制为 ${ceiling}。请先核对下方转写。`,
+    ja: `文字起こしできた英単語は ${wordCount} 語のみで、高いバンドを判断するには証拠が不足しています。今回の練習推定は ${ceiling} が上限です。まず下の文字起こしを確認してください。`,
+    ko: `전사된 영어 단어가 ${wordCount}개뿐이라 높은 밴드를 판단할 근거가 부족합니다. 이번 연습 추정 점수는 최대 ${ceiling}로 제한됩니다. 먼저 아래 전사를 확인해 주세요.`,
+    es: `Solo se transcribieron ${wordCount} palabras en inglés, así que no hay evidencia suficiente para una estimación alta fiable. La puntuación máxima de esta práctica es ${ceiling}; revisa primero la transcripción.`,
+    pt: `Apenas ${wordCount} palavras em inglês foram transcritas, por isso não há evidência suficiente para uma estimativa alta confiável. A nota desta prática fica limitada a ${ceiling}; confira primeiro a transcrição.`,
+    fr: `Seulement ${wordCount} mots anglais ont été transcrits, ce qui ne suffit pas pour une estimation fiable à un niveau supérieur. Cette estimation est plafonnée à ${ceiling} ; vérifiez d'abord la transcription.`,
+    de: `Es wurden nur ${wordCount} englische Wörter transkribiert. Das reicht nicht für eine verlässliche höhere Einstufung. Diese Übungsschätzung ist auf ${ceiling} begrenzt; prüfe zuerst das Transkript.`,
+  };
+  return summaries[language];
+}
+
 const STUDY_CARD_KINDS: SpeakingStudyCardKind[] = ["grammar", "vocabulary", "expression", "pronunciation"];
 
 function studyCards(value: unknown, fallback: string): SpeakingStudyCard[] {
@@ -108,26 +169,46 @@ function studyCards(value: unknown, fallback: string): SpeakingStudyCard[] {
   });
 }
 
-export function normalizeSpeakingEvaluation(input: unknown): SpeakingEvaluation {
+export function normalizeSpeakingEvaluation(
+  input: unknown,
+  context: { part?: SpeakingPart; nativeLanguage?: LanguageCode } = {},
+): SpeakingEvaluation {
   const data = input && typeof input === "object" ? input as Record<string, unknown> : {};
   const rawScores = data.scores && typeof data.scores === "object" ? data.scores as Record<string, unknown> : {};
-  const scores: SpeakingScores = {
-    fluency: halfBand(rawScores.fluency),
-    lexicalResource: halfBand(rawScores.lexicalResource),
-    grammar: halfBand(rawScores.grammar),
-    pronunciation: halfBand(rawScores.pronunciation),
+  const transcript = text(data.transcript, "No clear speech was detected.");
+  const wordCount = transcriptWordCount(transcript);
+  const part = context.part || 1;
+  const scoreCeiling = speakingScoreCeiling(part, wordCount);
+  const cap = (value: unknown) => {
+    const score = halfBand(value);
+    return scoreCeiling === null ? score : Math.min(score, scoreCeiling);
   };
+  const scores: SpeakingScores = {
+    fluency: cap(rawScores.fluency),
+    lexicalResource: cap(rawScores.lexicalResource),
+    grammar: cap(rawScores.grammar),
+    pronunciation: cap(rawScores.pronunciation),
+  };
+  const scoreAverage = Object.values(scores).reduce((sum, score) => sum + score, 0) / 4;
+  const estimatedBand = halfBand(scoreAverage);
 
   const studyNote = text(data.studyNote);
   return {
-    transcript: text(data.transcript, "No clear speech was detected."),
-    summary: text(data.summary, "Hina could not produce a full evaluation for this recording."),
-    estimatedBand: halfBand(data.estimatedBand),
+    transcript,
+    summary: scoreCeiling === null
+      ? text(data.summary, "Hina could not produce a full evaluation for this recording.")
+      : evidenceLimitedSummary(context.nativeLanguage || "en", wordCount, scoreCeiling),
+    estimatedBand,
     scores,
-    strengths: textList(data.strengths),
+    strengths: evidenceBackedStrengths(data.strengths, transcript),
     priorities: textList(data.priorities),
     improvedAnswer: text(data.improvedAnswer),
     studyNote,
     studyCards: studyCards(data.studyCards, studyNote),
+    evidence: {
+      transcribedWordCount: wordCount,
+      scoreCeiling,
+      confidence: evidenceConfidence(part, wordCount, scoreCeiling),
+    },
   };
 }

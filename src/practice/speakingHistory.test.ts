@@ -23,6 +23,7 @@ const evaluation: SpeakingEvaluation = {
   improvedAnswer: "I enjoy the quiet part of my morning.",
   studyNote: "Add one specific detail.",
   studyCards: [{ kind: "grammar", title: "Articles", body: "Use an article before a singular noun." }],
+  evidence: { transcribedWordCount: 5, scoreCeiling: 4, confidence: "low" },
 };
 
 test("speaking history stores recent attempts without audio", () => {
