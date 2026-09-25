@@ -1,6 +1,6 @@
 import { isLanguageCode, languageNameInEnglish } from "../i18n/languages.js";
 import { findSpeakingQuestion } from "../practice/speakingQuestions.js";
-import type { LanguageCode, SpeakingEvaluation, SpeakingEvaluationInput, SpeakingScores } from "../types.js";
+import type { LanguageCode, SpeakingEvaluation, SpeakingEvaluationInput, SpeakingScores, SpeakingStudyCard, SpeakingStudyCardKind } from "../types.js";
 
 const ALLOWED_AUDIO_TYPES = new Set([
   "audio/mp4",
@@ -64,6 +64,9 @@ Output contract:
 - Explain summary, strengths, priorities, and studyNote in ${nativeLanguage}.
 - Keep improvedAnswer in natural English and preserve the speaker's original ideas rather than inventing a completely different story.
 - studyNote must be a compact reusable learning card with a short heading and 2-4 practical points.
+- Return exactly four studyCards, one for each kind: grammar, vocabulary, expression, and pronunciation.
+- Each study card needs a short title and a compact body in ${nativeLanguage}. Keep English examples in English.
+- Make every card specific to something audible in this answer. If one category was already strong, turn that card into a reusable strength reminder.
 - If the recording is silent or unintelligible, use a transcript that says so, keep scores low, and explain how to retry.
 - Never describe this result as an official IELTS score.`;
 }
@@ -84,6 +87,27 @@ function textList(value: unknown) {
     : [];
 }
 
+const STUDY_CARD_KINDS: SpeakingStudyCardKind[] = ["grammar", "vocabulary", "expression", "pronunciation"];
+
+function studyCards(value: unknown, fallback: string): SpeakingStudyCard[] {
+  const cards = Array.isArray(value)
+    ? value.flatMap((item) => {
+      if (!item || typeof item !== "object") return [];
+      const card = item as Record<string, unknown>;
+      const kind = STUDY_CARD_KINDS.find((candidate) => candidate === card.kind);
+      const title = text(card.title);
+      const body = text(card.body);
+      return kind && title && body ? [{ kind, title, body }] : [];
+    })
+    : [];
+  const byKind = new Map(cards.map((card) => [card.kind, card]));
+  return STUDY_CARD_KINDS.map((kind) => byKind.get(kind) || {
+    kind,
+    title: `${kind[0].toUpperCase()}${kind.slice(1)} focus`,
+    body: fallback || "Review this part of the answer before the next attempt.",
+  });
+}
+
 export function normalizeSpeakingEvaluation(input: unknown): SpeakingEvaluation {
   const data = input && typeof input === "object" ? input as Record<string, unknown> : {};
   const rawScores = data.scores && typeof data.scores === "object" ? data.scores as Record<string, unknown> : {};
@@ -94,6 +118,7 @@ export function normalizeSpeakingEvaluation(input: unknown): SpeakingEvaluation 
     pronunciation: halfBand(rawScores.pronunciation),
   };
 
+  const studyNote = text(data.studyNote);
   return {
     transcript: text(data.transcript, "No clear speech was detected."),
     summary: text(data.summary, "Hina could not produce a full evaluation for this recording."),
@@ -102,6 +127,7 @@ export function normalizeSpeakingEvaluation(input: unknown): SpeakingEvaluation 
     strengths: textList(data.strengths),
     priorities: textList(data.priorities),
     improvedAnswer: text(data.improvedAnswer),
-    studyNote: text(data.studyNote),
+    studyNote,
+    studyCards: studyCards(data.studyCards, studyNote),
   };
 }

@@ -15,7 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { nanoid } from "nanoid";
-import type { HinaSpaceView, LanguageCode, Message, SpeakingEvaluation, SpeakingEvaluationInput, WishlistItem, WishlistKind } from "../types";
+import type { HinaSpaceView, LanguageCode, Message, SpeakingEvaluation, SpeakingEvaluationInput, SpeakingStudyCard, SpeakingPart, WishlistItem, WishlistKind } from "../types";
 import { uiText } from "../i18n/ui";
 import { SpeakingPractice } from "./SpeakingPractice";
 
@@ -26,7 +26,8 @@ interface HinaSpaceProps {
   onNavigate: (view: HinaSpaceView) => void;
   onWishlistItemsChange: (items: WishlistItem[]) => void;
   onEvaluateSpeaking?: (input: SpeakingEvaluationInput) => Promise<SpeakingEvaluation>;
-  onSaveStudyNote?: (note: string) => Promise<void> | void;
+  onSaveStudyCards?: (cards: SpeakingStudyCard[], context: { part: SpeakingPart; question: string }) => Promise<void> | void;
+  practiceOwnerId?: string;
   displayLanguage: LanguageCode;
   nativeLanguage?: LanguageCode;
 }
@@ -212,7 +213,7 @@ function MomentsPage({ displayLanguage }: Pick<HinaSpaceProps, "displayLanguage"
   );
 }
 
-type StudyCategory = "grammar" | "vocabulary" | "expression" | "culture";
+type StudyCategory = "grammar" | "vocabulary" | "expression" | "pronunciation" | "culture";
 
 interface StudyNote {
   id: string;
@@ -227,6 +228,7 @@ function noteFilters(displayLanguage: LanguageCode): Array<{ value: "all" | Stud
     { value: "grammar", label: uiText(displayLanguage, "grammar") },
     { value: "vocabulary", label: uiText(displayLanguage, "vocabulary") },
     { value: "expression", label: uiText(displayLanguage, "expressions") },
+    { value: "pronunciation", label: uiText(displayLanguage, "pronunciation") },
     { value: "culture", label: uiText(displayLanguage, "culture") },
   ];
 }
@@ -235,6 +237,7 @@ const NOTE_STYLES: Record<StudyCategory, string> = {
   grammar: "border-[#F2C7A4] bg-[#FFF5EC] dark:border-[#68404d] dark:bg-[#321c2b]",
   vocabulary: "border-[#D7D2A8] bg-[#F7F6E8] dark:border-[#55513b] dark:bg-[#2c2a27]",
   expression: "border-[#BDDCD5] bg-[#EDF7F5] dark:border-[#2e5661] dark:bg-[#17303a]",
+  pronunciation: "border-[#C8D6EA] bg-[#F0F5FB] dark:border-[#3b506a] dark:bg-[#1c2939]",
   culture: "border-[#D7C8E5] bg-[#F6F0FA] dark:border-[#533d68] dark:bg-[#2e2039]",
 };
 
@@ -246,6 +249,7 @@ function studyCategoryForMessage(message: Message): StudyCategory {
   const text = message.text.toLowerCase();
   if (/\b(grammar|tense|punctuation|capitalization|sentence|grammatically|correct)\b/.test(text)) return "grammar";
   if (/\b(vocab|vocabulary|word|means|meaning|slang)\b/.test(text)) return "vocabulary";
+  if (/\b(pronunciation|pronounce|stress|intonation|sound|syllable)\b/.test(text)) return "pronunciation";
   if (/\b(expression|phrase|idiom|say|sound|natural)\b/.test(text)) return "expression";
   if (/\b(culture|nuance|context|polite|casual)\b/.test(text)) return "culture";
   return message.type === "insight" ? "vocabulary" : "expression";
@@ -254,6 +258,7 @@ function studyCategoryForMessage(message: Message): StudyCategory {
 function titleForStudyNote(message: Message, category: StudyCategory, displayLanguage: LanguageCode) {
   if (message.type === "correction") return uiText(displayLanguage, "grammar");
   if (category === "vocabulary") return uiText(displayLanguage, "vocabulary");
+  if (category === "pronunciation") return uiText(displayLanguage, "pronunciation");
   if (category === "culture") return uiText(displayLanguage, "culture");
   return uiText(displayLanguage, "expressions");
 }
@@ -483,12 +488,13 @@ export function HinaSpace({
   onNavigate,
   onWishlistItemsChange,
   onEvaluateSpeaking = async () => { throw new Error("Speaking feedback is unavailable."); },
-  onSaveStudyNote = () => {},
+  onSaveStudyCards = () => {},
+  practiceOwnerId = "preview",
   displayLanguage,
   nativeLanguage = "zh-CN",
 }: HinaSpaceProps) {
   if (view === "space") return <SpaceHome onNavigate={onNavigate} displayLanguage={displayLanguage} />;
-  if (view === "practice") return <SpeakingPractice nativeLanguage={nativeLanguage} onEvaluate={onEvaluateSpeaking} onSaveStudyNote={onSaveStudyNote} />;
+  if (view === "practice") return <SpeakingPractice ownerId={practiceOwnerId} nativeLanguage={nativeLanguage} onEvaluate={onEvaluateSpeaking} onSaveStudyCards={onSaveStudyCards} />;
   if (view === "moments") return <MomentsPage displayLanguage={displayLanguage} />;
   if (view === "notes") return <NotesPage messages={messages} displayLanguage={displayLanguage} />;
   if (view === "wishlist") return <WishlistPage wishlistItems={wishlistItems} onWishlistItemsChange={onWishlistItemsChange} />;

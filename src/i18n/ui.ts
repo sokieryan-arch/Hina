@@ -45,6 +45,7 @@ const UI_COPY = {
     grammar: "Grammar",
     vocabulary: "Vocabulary",
     expressions: "Expressions",
+    pronunciation: "Pronunciation",
     culture: "Culture",
     noNotes: "No notes in this pocket yet",
     noNotesCopy: "Chat with Hina and her most useful fixes and expressions will appear here.",
@@ -93,6 +94,7 @@ const UI_COPY = {
     grammar: "语法",
     vocabulary: "词汇",
     expressions: "表达",
+    pronunciation: "发音",
     culture: "文化",
     noNotes: "这里还没有学习卡片",
     noNotesCopy: "和 Hina 聊天后，实用的纠错与表达会出现在这里。",
@@ -119,7 +121,19 @@ const UI_COPY = {
 
 export type UiKey = keyof typeof UI_COPY.en;
 
+const PRONUNCIATION_COPY: Record<LanguageCode, string> = {
+  en: "Pronunciation",
+  "zh-CN": "发音",
+  ja: "発音",
+  ko: "발음",
+  es: "Pronunciación",
+  pt: "Pronúncia",
+  fr: "Prononciation",
+  de: "Aussprache",
+};
+
 export function uiText(language: LanguageCode, key: UiKey): string {
+  if (key === "pronunciation") return PRONUNCIATION_COPY[language];
   const copy = UI_COPY[language] as Record<UiKey, string>;
   return copy[key] || UI_COPY.en[key];
 }

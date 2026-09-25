@@ -5,7 +5,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { nanoid } from "nanoid";
-import { AppView, BillingSummary, HinaSpaceView, LanguageCode, LanguageSettings, Message, ProactiveSettings, SpeakingEvaluation, SpeakingEvaluationInput, UserProfile, WishlistItem } from "./types";
+import { AppView, BillingSummary, HinaSpaceView, LanguageCode, LanguageSettings, Message, ProactiveSettings, SpeakingEvaluation, SpeakingEvaluationInput, SpeakingPart, SpeakingStudyCard, UserProfile, WishlistItem } from "./types";
 import { ChatMessage } from "./components/ChatMessage";
 import { SettingsModal } from "./components/SettingsModal";
 import { AuthPanel } from "./components/AuthPanel";
@@ -410,16 +410,29 @@ export default function App() {
     return data.evaluation as SpeakingEvaluation;
   }, [getJsonHeaders]);
 
-  const savePracticeNote = useCallback(async (text: string) => {
-    const note: Message = {
-      id: nanoid(),
-      role: "model",
-      text,
-      type: "correction",
-      timestamp: Date.now(),
+  const savePracticeStudyCards = useCallback(async (
+    cards: SpeakingStudyCard[],
+    context: { part: SpeakingPart; question: string },
+  ) => {
+    if (!user) return;
+    const categoryLabels: Record<SpeakingStudyCard["kind"], string> = {
+      grammar: "Grammar focus",
+      vocabulary: "Vocabulary focus",
+      expression: "Expression focus",
+      pronunciation: "Pronunciation focus",
     };
-    await saveMessageToFirebase(note);
-  }, [saveMessageToFirebase]);
+    await Promise.all(cards.map((card, index) => {
+      const timestamp = Date.now() + index;
+      const text = `${categoryLabels[card.kind]} · IELTS Speaking Part ${context.part}\n${card.title}\n\n${card.body}\n\nPrompt: ${context.question}`;
+      return setDoc(doc(db, `users/${user.uid}/messages`, nanoid()), {
+        role: "model",
+        text,
+        type: card.kind === "grammar" ? "correction" : "insight",
+        timestamp,
+        createdAt: serverTimestamp(),
+      });
+    }));
+  }, [user]);
 
   const handleProactiveTrigger = useCallback(async () => {
     if (isTyping || !proactiveSettings.enabled) return;
@@ -802,7 +815,8 @@ export default function App() {
           onNavigate={(nextView) => setView(nextView)}
           onWishlistItemsChange={updateWishlistItems}
           onEvaluateSpeaking={evaluateSpeaking}
-          onSaveStudyNote={savePracticeNote}
+          onSaveStudyCards={savePracticeStudyCards}
+          practiceOwnerId={user.uid}
           displayLanguage={displayLanguage}
           nativeLanguage={languageSettings.nativeLanguage}
         />

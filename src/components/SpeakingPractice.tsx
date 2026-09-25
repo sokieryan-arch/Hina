@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "motion/react";
+import { nanoid } from "nanoid";
 import {
   Activity,
   ArrowLeft,
@@ -18,20 +19,25 @@ import {
   Target,
 } from "lucide-react";
 import { speakingQuestionsForPart } from "../practice/speakingQuestions";
+import { createSpeakingAttempt, loadSpeakingAttempts, saveSpeakingAttempts } from "../practice/speakingHistory";
+import { SpeakingComparison, SpeakingHistory } from "./SpeakingHistory";
 import type {
   LanguageCode,
+  SpeakingAttempt,
   SpeakingEvaluation,
   SpeakingEvaluationInput,
   SpeakingPart,
   SpeakingQuestion,
+  SpeakingStudyCard,
 } from "../types";
 
 type PracticePhase = "ready" | "preparing" | "recording" | "recorded" | "evaluating" | "result";
 
 interface SpeakingPracticeProps {
+  ownerId: string;
   nativeLanguage: LanguageCode;
   onEvaluate: (input: SpeakingEvaluationInput) => Promise<SpeakingEvaluation>;
-  onSaveStudyNote: (note: string) => Promise<void> | void;
+  onSaveStudyCards: (cards: SpeakingStudyCard[], context: { part: SpeakingPart; question: string }) => Promise<void> | void;
 }
 
 const PARTS: Array<{
@@ -118,7 +124,7 @@ function PromptCard({ question }: { question: SpeakingQuestion }) {
   );
 }
 
-export function SpeakingPractice({ nativeLanguage, onEvaluate, onSaveStudyNote }: SpeakingPracticeProps) {
+export function SpeakingPractice({ ownerId, nativeLanguage, onEvaluate, onSaveStudyCards }: SpeakingPracticeProps) {
   const [part, setPart] = useState<SpeakingPart | null>(null);
   const [questionIndex, setQuestionIndex] = useState(0);
   const [phase, setPhase] = useState<PracticePhase>("ready");
@@ -128,14 +134,21 @@ export function SpeakingPractice({ nativeLanguage, onEvaluate, onSaveStudyNote }
   const [recordingBlob, setRecordingBlob] = useState<Blob | null>(null);
   const [recordingUrl, setRecordingUrl] = useState<string | null>(null);
   const [evaluation, setEvaluation] = useState<SpeakingEvaluation | null>(null);
+  const [attempts, setAttempts] = useState<SpeakingAttempt[]>(() => loadSpeakingAttempts(typeof window === "undefined" ? null : window.localStorage, ownerId));
+  const [currentAttempt, setCurrentAttempt] = useState<SpeakingAttempt | null>(null);
+  const [comparisonAttempt, setComparisonAttempt] = useState<SpeakingAttempt | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
+  const [studySaveStatus, setStudySaveStatus] = useState<"idle" | "saving" | "saved" | "failed">("idle");
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
 
   const questions = useMemo(() => part ? speakingQuestionsForPart(part) : [], [part]);
   const question = questions[questionIndex] || null;
+
+  useEffect(() => {
+    setAttempts(loadSpeakingAttempts(typeof window === "undefined" ? null : window.localStorage, ownerId));
+  }, [ownerId]);
 
   const releaseMicrophone = () => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
@@ -148,8 +161,9 @@ export function SpeakingPractice({ nativeLanguage, onEvaluate, onSaveStudyNote }
     setRecordingUrl(null);
     setRecordingSeconds(0);
     setEvaluation(null);
+    setCurrentAttempt(null);
     setError(null);
-    setSaved(false);
+    setStudySaveStatus("idle");
   };
 
   const stopRecording = () => {
@@ -186,6 +200,7 @@ export function SpeakingPractice({ nativeLanguage, onEvaluate, onSaveStudyNote }
     clearRecording();
     setPart(nextPart);
     setQuestionIndex(0);
+    setComparisonAttempt(null);
     setHasPrepared(false);
     setPhase("ready");
   };
@@ -196,6 +211,7 @@ export function SpeakingPractice({ nativeLanguage, onEvaluate, onSaveStudyNote }
     clearRecording();
     setPart(null);
     setQuestionIndex(0);
+    setComparisonAttempt(null);
     setHasPrepared(false);
     setPhase("ready");
   };
@@ -267,23 +283,70 @@ export function SpeakingPractice({ nativeLanguage, onEvaluate, onSaveStudyNote }
         mimeType: recordingBlob.type || "audio/webm",
         nativeLanguage,
       });
+      const previousAttempt = attempts.find((attempt) => attempt.questionId === question.id) || null;
+      const attempt = createSpeakingAttempt(nanoid(), question, result);
+      setAttempts((existing) => saveSpeakingAttempts(
+        typeof window === "undefined" ? null : window.localStorage,
+        ownerId,
+        [attempt, ...existing.filter((item) => item.id !== attempt.id)],
+      ));
+      setComparisonAttempt(previousAttempt);
+      setCurrentAttempt(attempt);
       setEvaluation(result);
       setPhase("result");
+      setStudySaveStatus("saving");
+      Promise.resolve(onSaveStudyCards(result.studyCards, { part: question.part, question: question.question }))
+        .then(() => setStudySaveStatus("saved"))
+        .catch((studyError) => {
+          console.error("Failed to save speaking study cards:", studyError);
+          setStudySaveStatus("failed");
+        });
     } catch (evaluationError) {
       setError(evaluationError instanceof Error ? evaluationError.message : "Hina could not review this answer yet.");
       setPhase("recorded");
     }
   };
 
-  const saveToStudy = async () => {
-    if (!evaluation?.studyNote || saved) return;
-    await onSaveStudyNote(`IELTS Speaking Part ${question?.part || ""}\n\n${evaluation.studyNote}`);
-    setSaved(true);
+  const retryStudyCards = async () => {
+    if (!evaluation || !question || studySaveStatus === "saving") return;
+    setStudySaveStatus("saving");
+    try {
+      await onSaveStudyCards(evaluation.studyCards, { part: question.part, question: question.question });
+      setStudySaveStatus("saved");
+    } catch (studyError) {
+      console.error("Failed to save speaking study cards:", studyError);
+      setStudySaveStatus("failed");
+    }
+  };
+
+  const retryQuestion = () => {
+    const baseline = currentAttempt;
+    clearRecording();
+    setComparisonAttempt(baseline);
+    setHasPrepared(false);
+    setPhase("ready");
+  };
+
+  const practiceAgain = (attempt: SpeakingAttempt) => {
+    const nextQuestions = speakingQuestionsForPart(attempt.part);
+    const nextQuestionIndex = nextQuestions.findIndex((item) => item.id === attempt.questionId);
+    clearRecording();
+    setPart(attempt.part);
+    setQuestionIndex(Math.max(0, nextQuestionIndex));
+    setComparisonAttempt(attempt);
+    setHasPrepared(false);
+    setPhase("ready");
+  };
+
+  const clearPracticeHistory = () => {
+    if (typeof window !== "undefined" && !window.confirm("Clear all locally saved speaking practice history?")) return;
+    setAttempts(saveSpeakingAttempts(typeof window === "undefined" ? null : window.localStorage, ownerId, []));
   };
 
   const nextQuestion = () => {
     clearRecording();
     setQuestionIndex((index) => (index + 1) % questions.length);
+    setComparisonAttempt(null);
     setHasPrepared(false);
     setPhase("ready");
   };
@@ -337,6 +400,7 @@ export function SpeakingPractice({ nativeLanguage, onEvaluate, onSaveStudyNote }
             <p className="mt-5 text-xs leading-5 text-[#9A8F88] dark:text-[#8e7b9b]">
               AI feedback is for practice only and is not an official IELTS score.
             </p>
+            <SpeakingHistory attempts={attempts} onPracticeAgain={practiceAgain} onClear={clearPracticeHistory} />
           </motion.div>
         </div>
       </main>
@@ -450,6 +514,8 @@ export function SpeakingPractice({ nativeLanguage, onEvaluate, onSaveStudyNote }
                 ))}
               </div>
 
+              {comparisonAttempt && currentAttempt && <SpeakingComparison previous={comparisonAttempt} current={currentAttempt} />}
+
               <div className="mt-7 grid gap-7 sm:grid-cols-2">
                 <section>
                   <h3 className="flex items-center gap-2 font-bold text-[#35312F] dark:text-white"><Check size={18} className="text-[#2F8B61]" /> What worked</h3>
@@ -477,11 +543,17 @@ export function SpeakingPractice({ nativeLanguage, onEvaluate, onSaveStudyNote }
               )}
 
               <div className="mt-7 flex flex-wrap items-center justify-between gap-3 border-t border-[#E8E2D6] pt-6 dark:border-[#3a2347]">
-                <button type="button" onClick={saveToStudy} disabled={saved || !evaluation.studyNote} className="flex items-center gap-2 text-sm font-bold text-[#2F6B60] disabled:text-[#A9A19B] dark:text-[#a9ddd3]">
-                  <BookOpen size={17} /> {saved ? "Saved to Study" : "Save lesson to Study"}
-                </button>
+                {studySaveStatus === "failed" ? (
+                  <button type="button" onClick={retryStudyCards} className="flex items-center gap-2 text-sm font-bold text-[#A06032] dark:text-[#efbd9d]">
+                    <BookOpen size={17} /> Study cards failed · Try again
+                  </button>
+                ) : (
+                  <span className="flex items-center gap-2 text-sm font-bold text-[#2F6B60] dark:text-[#a9ddd3]">
+                    <BookOpen size={17} /> {studySaveStatus === "saved" ? "4 cards saved to Study" : "Saving 4 cards to Study…"}
+                  </span>
+                )}
                 <div className="flex gap-3">
-                  <button type="button" onClick={() => { clearRecording(); setPhase("ready"); }} className="rounded-full border border-[#D8CDBB] bg-white px-5 py-3 text-sm font-bold text-[#5D554F] dark:border-[#4b4054] dark:bg-[#291a33] dark:text-[#e5dceb]">Try again</button>
+                  <button type="button" onClick={retryQuestion} className="rounded-full border border-[#D8CDBB] bg-white px-5 py-3 text-sm font-bold text-[#5D554F] dark:border-[#4b4054] dark:bg-[#291a33] dark:text-[#e5dceb]">Try again</button>
                   <button type="button" onClick={nextQuestion} className="flex items-center gap-2 rounded-full bg-[#2F5D54] px-5 py-3 text-sm font-bold text-white dark:bg-[#6f4586]">Next prompt <ChevronRight size={16} /></button>
                 </div>
               </div>

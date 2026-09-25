@@ -29,7 +29,24 @@ test("speaking evaluation normalization clamps scores to half bands", () => {
     priorities: ["Add detail"],
     improvedAnswer: "I usually enjoy mornings the most.",
     studyNote: "Add a reason and example.",
+    studyCards: [
+      { kind: "grammar", title: "Past tense", body: "Keep completed events in the past tense." },
+      { kind: "vocabulary", title: "Specific verbs", body: "Replace general verbs with vivid ones." },
+      { kind: "expression", title: "Give a reason", body: "Use 'The main reason is...'" },
+      { kind: "pronunciation", title: "Word endings", body: "Make final consonants audible." },
+    ],
   });
   assert.equal(evaluation.estimatedBand, 6.5);
   assert.deepEqual(evaluation.scores, { fluency: 9, lexicalResource: 6, grammar: 6, pronunciation: 0 });
+  assert.equal(evaluation.studyCards.length, 4);
+  assert.equal(evaluation.studyCards[0].kind, "grammar");
+});
+
+test("speaking evaluation normalization fills any missing study-card category", () => {
+  const evaluation = normalizeSpeakingEvaluation({
+    studyNote: "Review this answer.",
+    studyCards: [{ kind: "grammar", title: "Tense", body: "Keep the tense consistent." }],
+  });
+
+  assert.deepEqual(evaluation.studyCards.map((card) => card.kind), ["grammar", "vocabulary", "expression", "pronunciation"]);
 });

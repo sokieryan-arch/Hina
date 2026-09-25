@@ -104,8 +104,20 @@ const SPEAKING_EVALUATION_SCHEMA = {
     priorities: { type: Type.ARRAY, items: { type: Type.STRING } },
     improvedAnswer: { type: Type.STRING },
     studyNote: { type: Type.STRING },
+    studyCards: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          kind: { type: Type.STRING, enum: ["grammar", "vocabulary", "expression", "pronunciation"] },
+          title: { type: Type.STRING },
+          body: { type: Type.STRING },
+        },
+        required: ["kind", "title", "body"],
+      },
+    },
   },
-  required: ["transcript", "summary", "estimatedBand", "scores", "strengths", "priorities", "improvedAnswer", "studyNote"],
+  required: ["transcript", "summary", "estimatedBand", "scores", "strengths", "priorities", "improvedAnswer", "studyNote", "studyCards"],
 };
 
 function pcmBase64ToWavBase64(pcmBase64: string, sampleRate = 24000, numChannels = 1, bitsPerSample = 16): string {

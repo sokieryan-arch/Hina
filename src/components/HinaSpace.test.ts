@@ -10,6 +10,7 @@ const messages: Message[] = [
   { id: "m2", role: "model", text: "Use day, not today.", timestamp: Date.now(), type: "correction" },
   { id: "m3", role: "model", text: "Low-key means quietly.", timestamp: Date.now(), type: "insight" },
   { id: "m4", role: "model", text: "Try the phrase I'm all ears.", timestamp: Date.now(), type: "insight", tipKind: "expression" },
+  { id: "m5", role: "model", text: "Pronunciation focus: make the final consonant audible.", timestamp: Date.now(), type: "insight" },
 ];
 
 const wishlist: WishlistItem[] = [{
@@ -62,10 +63,12 @@ test("HinaSpace study view derives notes and category tabs from chat messages", 
   assert.match(markup, /Grammar/);
   assert.match(markup, /Vocabulary/);
   assert.match(markup, /Expressions/);
+  assert.match(markup, /Pronunciation/);
   assert.match(markup, /Culture/);
   assert.match(markup, /grammar/);
   assert.match(markup, /vocabulary/);
   assert.match(markup, /expression/);
+  assert.match(markup, /pronunciation/);
 });
 
 test("HinaSpace relationship view summarizes chat and list history", () => {
@@ -105,6 +108,7 @@ test("HinaSpace renders Moments and study labels in the target language", () => 
   assert.match(studyMarkup, /语法/);
   assert.match(studyMarkup, /词汇/);
   assert.match(studyMarkup, /表达/);
+  assert.match(studyMarkup, /发音/);
 });
 
 test("HinaSpace renders Portuguese Moments and study labels", () => {
@@ -129,4 +133,5 @@ test("HinaSpace renders Portuguese Moments and study labels", () => {
   assert.match(studyMarkup, /Gramática/);
   assert.match(studyMarkup, /Vocabulário/);
   assert.match(studyMarkup, /Expressões/);
+  assert.match(studyMarkup, /Pronúncia/);
 });

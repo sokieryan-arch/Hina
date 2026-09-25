@@ -6,9 +6,10 @@ import { SpeakingPractice } from "./SpeakingPractice";
 
 test("speaking practice renders all three IELTS parts and the score disclaimer", () => {
   const markup = renderToStaticMarkup(React.createElement(SpeakingPractice, {
+    ownerId: "test-user",
     nativeLanguage: "zh-CN",
     onEvaluate: async () => { throw new Error("not called during render"); },
-    onSaveStudyNote: () => {},
+    onSaveStudyCards: () => {},
   }));
 
   assert.match(markup, /IELTS Speaking/);

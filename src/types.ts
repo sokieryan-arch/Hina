@@ -63,6 +63,14 @@ export interface SpeakingScores {
   pronunciation: number;
 }
 
+export type SpeakingStudyCardKind = "grammar" | "vocabulary" | "expression" | "pronunciation";
+
+export interface SpeakingStudyCard {
+  kind: SpeakingStudyCardKind;
+  title: string;
+  body: string;
+}
+
 export interface SpeakingEvaluation {
   transcript: string;
   summary: string;
@@ -72,6 +80,7 @@ export interface SpeakingEvaluation {
   priorities: string[];
   improvedAnswer: string;
   studyNote: string;
+  studyCards: SpeakingStudyCard[];
 }
 
 export interface SpeakingEvaluationInput {
@@ -79,6 +88,21 @@ export interface SpeakingEvaluationInput {
   audioBase64: string;
   mimeType: string;
   nativeLanguage: LanguageCode;
+}
+
+export interface SpeakingAttempt {
+  id: string;
+  questionId: string;
+  question: string;
+  part: SpeakingPart;
+  createdAt: number;
+  estimatedBand: number;
+  scores: SpeakingScores;
+  transcript: string;
+  summary: string;
+  priorities: string[];
+  improvedAnswer: string;
+  studyCards: SpeakingStudyCard[];
 }
 
 export interface WishlistItem {
