@@ -112,6 +112,66 @@ export interface SpeakingAttempt {
   studyCards: SpeakingStudyCard[];
 }
 
+export interface WritingTask2Prompt {
+  id: string;
+  topic: string;
+  question: string;
+}
+
+export interface WritingScores {
+  taskResponse: number;
+  coherence: number;
+  lexicalResource: number;
+  grammar: number;
+}
+
+export interface WritingSentenceFeedback {
+  kind: "grammar" | "vocabulary" | "cohesion";
+  original: string;
+  revision: string;
+  reason: string;
+}
+
+export interface WritingEvidence {
+  wordCount: number;
+  scoreCeiling: number | null;
+  confidence: "low" | "medium" | "high";
+}
+
+export interface WritingEvaluation {
+  summary: string;
+  estimatedBand: number;
+  scores: WritingScores;
+  strengths: string[];
+  priorities: string[];
+  sentenceFeedback: WritingSentenceFeedback[];
+  improvedParagraph: string;
+  studyCards: SpeakingStudyCard[];
+  evidence: WritingEvidence;
+}
+
+export interface WritingEvaluationInput {
+  questionId: string;
+  essay: string;
+  nativeLanguage: LanguageCode;
+}
+
+export interface WritingAttempt {
+  id: string;
+  questionId: string;
+  question: string;
+  topic: string;
+  createdAt: number;
+  essay: string;
+  estimatedBand: number;
+  scores: WritingScores;
+  summary: string;
+  priorities: string[];
+  sentenceFeedback: WritingSentenceFeedback[];
+  improvedParagraph: string;
+  studyCards: SpeakingStudyCard[];
+}
+
 export interface WishlistItem {
   id: string;
   kind: WishlistKind;

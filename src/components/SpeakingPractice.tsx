@@ -36,6 +36,7 @@ type PracticePhase = "ready" | "preparing" | "recording" | "recorded" | "evaluat
 interface SpeakingPracticeProps {
   ownerId: string;
   nativeLanguage: LanguageCode;
+  onExit?: () => void;
   onEvaluate: (input: SpeakingEvaluationInput) => Promise<SpeakingEvaluation>;
   onSaveStudyCards: (cards: SpeakingStudyCard[], context: { part: SpeakingPart; question: string }) => Promise<void> | void;
 }
@@ -124,7 +125,7 @@ function PromptCard({ question }: { question: SpeakingQuestion }) {
   );
 }
 
-export function SpeakingPractice({ ownerId, nativeLanguage, onEvaluate, onSaveStudyCards }: SpeakingPracticeProps) {
+export function SpeakingPractice({ ownerId, nativeLanguage, onExit, onEvaluate, onSaveStudyCards }: SpeakingPracticeProps) {
   const [part, setPart] = useState<SpeakingPart | null>(null);
   const [questionIndex, setQuestionIndex] = useState(0);
   const [phase, setPhase] = useState<PracticePhase>("ready");
@@ -356,6 +357,11 @@ export function SpeakingPractice({ ownerId, nativeLanguage, onEvaluate, onSaveSt
       <main className="flex-1 overflow-y-auto bg-[#FDFBF7] px-4 py-7 dark:bg-[#1c1224] sm:px-7 sm:py-10">
         <div className="mx-auto w-full max-w-4xl">
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+            {onExit ? (
+              <button type="button" onClick={onExit} className="mb-7 flex items-center gap-2 text-sm font-semibold text-[#746B66] hover:text-[#2E2A27] dark:text-[#bda9ca] dark:hover:text-white">
+                <ArrowLeft size={17} /> Practice home
+              </button>
+            ) : null}
             <div className="flex items-start justify-between gap-5">
               <div className="min-w-0">
                 <p className="text-xs font-bold uppercase tracking-widest text-[#A16E28] dark:text-[#d6bdec]">IELTS Speaking</p>

@@ -47,6 +47,21 @@ test("HinaSpace renders Practice above the four personal sections", () => {
   assert.match(markup, /❤️/);
 });
 
+test("HinaSpace practice view opens the speaking and writing practice center", () => {
+  const markup = renderToStaticMarkup(React.createElement(HinaSpace, {
+    view: "practice",
+    messages,
+    wishlistItems: wishlist,
+    onNavigate: () => {},
+    onWishlistItemsChange: () => {},
+    displayLanguage: "en",
+  }));
+
+  assert.match(markup, /IELTS Practice/);
+  assert.match(markup, /Speaking/);
+  assert.match(markup, /Writing Task 2/);
+});
+
 test("HinaSpace study view derives notes and category tabs from chat messages", () => {
   const markup = renderToStaticMarkup(React.createElement(HinaSpace, {
     view: "notes",

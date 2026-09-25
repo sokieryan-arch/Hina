@@ -15,9 +15,9 @@ import {
   X,
 } from "lucide-react";
 import { nanoid } from "nanoid";
-import type { HinaSpaceView, LanguageCode, Message, SpeakingEvaluation, SpeakingEvaluationInput, SpeakingStudyCard, SpeakingPart, WishlistItem, WishlistKind } from "../types";
+import type { HinaSpaceView, LanguageCode, Message, SpeakingEvaluation, SpeakingEvaluationInput, SpeakingStudyCard, SpeakingPart, WishlistItem, WishlistKind, WritingEvaluation, WritingEvaluationInput } from "../types";
 import { uiText } from "../i18n/ui";
-import { SpeakingPractice } from "./SpeakingPractice";
+import { PracticeCenter } from "./PracticeCenter";
 
 interface HinaSpaceProps {
   view: HinaSpaceView;
@@ -27,6 +27,8 @@ interface HinaSpaceProps {
   onWishlistItemsChange: (items: WishlistItem[]) => void;
   onEvaluateSpeaking?: (input: SpeakingEvaluationInput) => Promise<SpeakingEvaluation>;
   onSaveStudyCards?: (cards: SpeakingStudyCard[], context: { part: SpeakingPart; question: string }) => Promise<void> | void;
+  onEvaluateWriting?: (input: WritingEvaluationInput) => Promise<WritingEvaluation>;
+  onSaveWritingStudyCards?: (cards: SpeakingStudyCard[], context: { question: string }) => Promise<void> | void;
   practiceOwnerId?: string;
   displayLanguage: LanguageCode;
   nativeLanguage?: LanguageCode;
@@ -489,12 +491,23 @@ export function HinaSpace({
   onWishlistItemsChange,
   onEvaluateSpeaking = async () => { throw new Error("Speaking feedback is unavailable."); },
   onSaveStudyCards = () => {},
+  onEvaluateWriting = async () => { throw new Error("Writing feedback is unavailable."); },
+  onSaveWritingStudyCards = () => {},
   practiceOwnerId = "preview",
   displayLanguage,
   nativeLanguage = "zh-CN",
 }: HinaSpaceProps) {
   if (view === "space") return <SpaceHome onNavigate={onNavigate} displayLanguage={displayLanguage} />;
-  if (view === "practice") return <SpeakingPractice ownerId={practiceOwnerId} nativeLanguage={nativeLanguage} onEvaluate={onEvaluateSpeaking} onSaveStudyCards={onSaveStudyCards} />;
+  if (view === "practice") return (
+    <PracticeCenter
+      ownerId={practiceOwnerId}
+      nativeLanguage={nativeLanguage}
+      onEvaluateSpeaking={onEvaluateSpeaking}
+      onSaveSpeakingStudyCards={onSaveStudyCards}
+      onEvaluateWriting={onEvaluateWriting}
+      onSaveWritingStudyCards={onSaveWritingStudyCards}
+    />
+  );
   if (view === "moments") return <MomentsPage displayLanguage={displayLanguage} />;
   if (view === "notes") return <NotesPage messages={messages} displayLanguage={displayLanguage} />;
   if (view === "wishlist") return <WishlistPage wishlistItems={wishlistItems} onWishlistItemsChange={onWishlistItemsChange} />;

@@ -1,0 +1,41 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import type { WritingAttempt } from "../types";
+import { WritingComparison, WritingHistory } from "./WritingHistory";
+
+const first: WritingAttempt = {
+  id: "first",
+  questionId: "task2-test",
+  question: "Discuss both views.",
+  topic: "Education",
+  createdAt: 1_700_000_000_000,
+  essay: "First draft.",
+  estimatedBand: 5.5,
+  scores: { taskResponse: 5.5, coherence: 6, lexicalResource: 5.5, grammar: 5 },
+  summary: "Developing.",
+  priorities: [],
+  sentenceFeedback: [],
+  improvedParagraph: "",
+  studyCards: [],
+};
+const second: WritingAttempt = {
+  ...first,
+  id: "second",
+  estimatedBand: 6.5,
+  scores: { taskResponse: 6.5, coherence: 6.5, lexicalResource: 6.5, grammar: 6.5 },
+};
+
+test("writing history renders averages and rewrite action", () => {
+  const markup = renderToStaticMarkup(React.createElement(WritingHistory, { attempts: [second, first], onPracticeAgain: () => {} }));
+  assert.match(markup, /Draft history/);
+  assert.match(markup, /6\.0/);
+  assert.match(markup, /Rewrite/);
+});
+
+test("writing comparison renders criterion movement", () => {
+  const markup = renderToStaticMarkup(React.createElement(WritingComparison, { previous: first, current: second }));
+  assert.match(markup, /Same task comparison/);
+  assert.match(markup, /\+1\.0 overall/);
+});

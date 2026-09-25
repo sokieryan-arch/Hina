@@ -5,7 +5,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { nanoid } from "nanoid";
-import { AppView, BillingSummary, HinaSpaceView, LanguageCode, LanguageSettings, Message, ProactiveSettings, SpeakingEvaluation, SpeakingEvaluationInput, SpeakingPart, SpeakingStudyCard, UserProfile, WishlistItem } from "./types";
+import { AppView, BillingSummary, HinaSpaceView, LanguageCode, LanguageSettings, Message, ProactiveSettings, SpeakingEvaluation, SpeakingEvaluationInput, SpeakingPart, SpeakingStudyCard, UserProfile, WishlistItem, WritingEvaluation, WritingEvaluationInput } from "./types";
 import { ChatMessage } from "./components/ChatMessage";
 import { SettingsModal } from "./components/SettingsModal";
 import { AuthPanel } from "./components/AuthPanel";
@@ -410,6 +410,20 @@ export default function App() {
     return data.evaluation as SpeakingEvaluation;
   }, [getJsonHeaders]);
 
+  const evaluateWriting = useCallback(async (input: WritingEvaluationInput): Promise<WritingEvaluation> => {
+    const response = await fetch("/api/practice/writing/evaluate", {
+      method: "POST",
+      headers: await getJsonHeaders(),
+      body: JSON.stringify(input),
+    });
+    const data = await parseJsonResponse(response);
+    if (data.billing) setBilling(data.billing);
+    if (!response.ok || !data.evaluation) {
+      throw new Error(renderChatErrorMessage(data.error || `Writing feedback failed with status ${response.status}.`));
+    }
+    return data.evaluation as WritingEvaluation;
+  }, [getJsonHeaders]);
+
   const savePracticeStudyCards = useCallback(async (
     cards: SpeakingStudyCard[],
     context: { part: SpeakingPart; question: string },
@@ -424,6 +438,29 @@ export default function App() {
     await Promise.all(cards.map((card, index) => {
       const timestamp = Date.now() + index;
       const text = `${categoryLabels[card.kind]} · IELTS Speaking Part ${context.part}\n${card.title}\n\n${card.body}\n\nPrompt: ${context.question}`;
+      return setDoc(doc(db, `users/${user.uid}/messages`, nanoid()), {
+        role: "model",
+        text,
+        type: card.kind === "grammar" ? "correction" : "insight",
+        timestamp,
+        createdAt: serverTimestamp(),
+      });
+    }));
+  }, [user]);
+
+  const saveWritingStudyCards = useCallback(async (
+    cards: SpeakingStudyCard[],
+    context: { question: string },
+  ) => {
+    if (!user) return;
+    const categoryLabels: Partial<Record<SpeakingStudyCard["kind"], string>> = {
+      grammar: "Grammar focus",
+      vocabulary: "Vocabulary focus",
+      expression: "Expression focus",
+    };
+    await Promise.all(cards.map((card, index) => {
+      const timestamp = Date.now() + index;
+      const text = `${categoryLabels[card.kind] || "Writing focus"} · IELTS Writing Task 2\n${card.title}\n\n${card.body}\n\nPrompt: ${context.question}`;
       return setDoc(doc(db, `users/${user.uid}/messages`, nanoid()), {
         role: "model",
         text,
@@ -816,6 +853,8 @@ export default function App() {
           onWishlistItemsChange={updateWishlistItems}
           onEvaluateSpeaking={evaluateSpeaking}
           onSaveStudyCards={savePracticeStudyCards}
+          onEvaluateWriting={evaluateWriting}
+          onSaveWritingStudyCards={saveWritingStudyCards}
           practiceOwnerId={user.uid}
           displayLanguage={displayLanguage}
           nativeLanguage={languageSettings.nativeLanguage}

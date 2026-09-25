@@ -18,6 +18,11 @@ import {
   normalizeSpeakingEvaluation,
   readSpeakingEvaluationInput,
 } from "./src/server/speaking.js";
+import {
+  buildWritingEvaluationPrompt,
+  normalizeWritingEvaluation,
+  readWritingEvaluationInput,
+} from "./src/server/writing.js";
 
 const aiConfig = readAIConfig();
 const REQUEST_TIMEOUT_MS = aiConfig.timeoutMs;
@@ -119,6 +124,108 @@ const SPEAKING_EVALUATION_SCHEMA = {
     },
   },
   required: ["transcript", "summary", "estimatedBand", "scores", "strengths", "priorities", "improvedAnswer", "studyNote", "studyCards"],
+};
+
+const WRITING_EVALUATION_PROPERTIES = {
+  summary: { type: Type.STRING },
+  estimatedBand: { type: Type.NUMBER },
+  scores: {
+    type: Type.OBJECT,
+    properties: {
+      taskResponse: { type: Type.NUMBER },
+      coherence: { type: Type.NUMBER },
+      lexicalResource: { type: Type.NUMBER },
+      grammar: { type: Type.NUMBER },
+    },
+    required: ["taskResponse", "coherence", "lexicalResource", "grammar"],
+  },
+  strengths: { type: Type.ARRAY, items: { type: Type.STRING } },
+  priorities: { type: Type.ARRAY, items: { type: Type.STRING } },
+  sentenceFeedback: {
+    type: Type.ARRAY,
+    items: {
+      type: Type.OBJECT,
+      properties: {
+        kind: { type: Type.STRING, enum: ["grammar", "vocabulary", "cohesion"] },
+        original: { type: Type.STRING },
+        revision: { type: Type.STRING },
+        reason: { type: Type.STRING },
+      },
+      required: ["kind", "original", "revision", "reason"],
+    },
+  },
+  improvedParagraph: { type: Type.STRING },
+  studyCards: {
+    type: Type.ARRAY,
+    items: {
+      type: Type.OBJECT,
+      properties: {
+        kind: { type: Type.STRING, enum: ["grammar", "vocabulary", "expression"] },
+        title: { type: Type.STRING },
+        body: { type: Type.STRING },
+      },
+      required: ["kind", "title", "body"],
+    },
+  },
+};
+
+const WRITING_EVALUATION_REQUIRED = ["summary", "estimatedBand", "scores", "strengths", "priorities", "sentenceFeedback", "improvedParagraph", "studyCards"];
+
+const WRITING_EVALUATION_SCHEMA = {
+  type: Type.OBJECT,
+  properties: WRITING_EVALUATION_PROPERTIES,
+  required: WRITING_EVALUATION_REQUIRED,
+};
+
+const WRITING_OPENAI_RESPONSE_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    summary: { type: "string" },
+    estimatedBand: { type: "number" },
+    scores: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        taskResponse: { type: "number" },
+        coherence: { type: "number" },
+        lexicalResource: { type: "number" },
+        grammar: { type: "number" },
+      },
+      required: ["taskResponse", "coherence", "lexicalResource", "grammar"],
+    },
+    strengths: { type: "array", items: { type: "string" } },
+    priorities: { type: "array", items: { type: "string" } },
+    sentenceFeedback: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          kind: { type: "string", enum: ["grammar", "vocabulary", "cohesion"] },
+          original: { type: "string" },
+          revision: { type: "string" },
+          reason: { type: "string" },
+        },
+        required: ["kind", "original", "revision", "reason"],
+      },
+    },
+    improvedParagraph: { type: "string" },
+    studyCards: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          kind: { type: "string", enum: ["grammar", "vocabulary", "expression"] },
+          title: { type: "string" },
+          body: { type: "string" },
+        },
+        required: ["kind", "title", "body"],
+      },
+    },
+  },
+  required: WRITING_EVALUATION_REQUIRED,
 };
 
 function pcmBase64ToWavBase64(pcmBase64: string, sampleRate = 24000, numChannels = 1, bitsPerSample = 16): string {
@@ -342,6 +449,51 @@ async function generateSpeakingEvaluation(input: ReturnType<typeof readSpeakingE
   });
 }
 
+async function generateWritingEvaluation(input: ReturnType<typeof readWritingEvaluationInput>) {
+  const evaluationPrompt = buildWritingEvaluationPrompt(input);
+  let parsed: unknown;
+
+  if (aiConfig.provider === "openai" && openAI) {
+    const response = await withTimeout(openAI.chat.completions.create({
+      model: aiConfig.chatModel,
+      messages: [{ role: "user", content: evaluationPrompt }],
+      temperature: 0,
+      seed: 17,
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "hina_writing_evaluation",
+          strict: false,
+          schema: WRITING_OPENAI_RESPONSE_SCHEMA,
+        },
+      },
+    }), SPEAKING_TIMEOUT_MS, "OpenAI writing evaluation request");
+    const text = response.choices[0]?.message?.content;
+    if (!text) throw new Error("No writing evaluation from model");
+    parsed = JSON.parse(text.trim());
+  } else if (aiConfig.provider === "gemini" && geminiAI) {
+    const response = await withTimeout(geminiAI.models.generateContent({
+      model: aiConfig.chatModel,
+      contents: [{ role: "user", parts: [{ text: evaluationPrompt }] }],
+      config: {
+        temperature: 0,
+        seed: 17,
+        responseMimeType: "application/json",
+        responseSchema: WRITING_EVALUATION_SCHEMA,
+      },
+    }), SPEAKING_TIMEOUT_MS, "Gemini writing evaluation request");
+    if (!response?.text) throw new Error("No writing evaluation from model");
+    parsed = JSON.parse(response.text.trim());
+  } else {
+    throw new Error(aiConfig.error || "AI provider is not configured.");
+  }
+
+  return normalizeWritingEvaluation(parsed, {
+    essay: input.essay,
+    nativeLanguage: input.nativeLanguage,
+  });
+}
+
 function getFirebaseWebApiKey() {
   return process.env.FIREBASE_WEB_API_KEY
     || process.env.VITE_FIREBASE_API_KEY;
@@ -542,6 +694,50 @@ app.post("/api/practice/speaking/evaluate", async (req, res) => {
     if (status === 503) return res.status(503).json({ error: getErrorMessage(error) });
     console.error("Speaking Evaluation Error:", describeAIError(error));
     res.status(500).json({ error: "Hina could not review this answer. Please try again later." });
+  }
+});
+
+app.post("/api/practice/writing/evaluate", async (req, res) => {
+  try {
+    const input = readWritingEvaluationInput(req.body);
+    if (aiConfig.error) return res.status(500).json({ error: aiConfig.error });
+    const billingSubject = await getBillingSubject(req, { requireVerifiedEmail: true });
+    const billing = await billingStore.getBillingSummary(billingSubject);
+    if (!canUseChat(billing)) return res.status(402).json({ error: "quota_exceeded", billing });
+
+    let evaluation;
+    let retries = 2;
+    while (retries > 0) {
+      try {
+        evaluation = await generateWritingEvaluation(input);
+        break;
+      } catch (error) {
+        if (isOperationTimeoutError(error)) {
+          return res.status(503).json({ error: "Hina took too long to review the essay. Please try again.", code: 503 });
+        }
+        if (isQuotaExhaustedError(error)) {
+          return res.status(429).json({ error: "The AI key has no remaining quota for writing feedback.", code: 429 });
+        }
+        if (!isRetryableAIError(error)) throw error;
+        retries -= 1;
+        if (retries === 0) {
+          return res.status(503).json({ error: "Writing feedback is temporarily busy. Please try again shortly.", code: 503 });
+        }
+        const { delayMs } = getExternalRetryDelayMs(error, 1500);
+        await new Promise((resolve) => setTimeout(resolve, Math.min(delayMs, 5000)));
+      }
+    }
+
+    if (!evaluation) throw new Error("No writing evaluation generated.");
+    const nextBilling = await billingStore.incrementChatUsage(billingSubject);
+    res.json({ evaluation, billing: nextBilling });
+  } catch (error) {
+    if (isEmailVerificationRequiredError(error)) return sendEmailVerificationRequired(res);
+    const status = getErrorStatus(error);
+    if (status === 400) return res.status(400).json({ error: getErrorMessage(error) });
+    if (status === 503) return res.status(503).json({ error: getErrorMessage(error) });
+    console.error("Writing Evaluation Error:", describeAIError(error));
+    res.status(500).json({ error: "Hina could not review this essay. Please try again later." });
   }
 });
 

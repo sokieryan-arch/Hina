@@ -19,3 +19,10 @@ test("server exposes the authenticated speaking practice evaluation endpoint", (
   assert.match(source, /readSpeakingEvaluationInput/);
   assert.match(source, /incrementChatUsage/);
 });
+
+test("server exposes the authenticated writing practice evaluation endpoint", () => {
+  const source = readFileSync(new URL("../../server.ts", import.meta.url), "utf8");
+  assert.match(source, /\/api\/practice\/writing\/evaluate/);
+  assert.match(source, /readWritingEvaluationInput/);
+  assert.match(source, /generateWritingEvaluation/);
+});
