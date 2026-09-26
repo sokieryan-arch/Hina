@@ -1,8 +1,11 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { motion } from "motion/react";
-import { AudioLines, BookOpenCheck, ChevronRight, FilePenLine, Headphones, Target } from "lucide-react";
+import { AudioLines, BarChart3, BookOpenCheck, ChevronRight, FilePenLine, Headphones, Target } from "lucide-react";
 import type {
   LanguageCode,
+  PracticeAttempt,
+  PracticeHistoryRecord,
+  PracticeSkill,
   ObjectivePracticeSkill,
   SpeakingEvaluation,
   SpeakingEvaluationInput,
@@ -16,6 +19,8 @@ import { SpeakingPractice } from "./SpeakingPractice";
 import { WritingPractice } from "./WritingPractice";
 import { ReadingPractice } from "./ReadingPractice";
 import { ListeningPractice } from "./ListeningPractice";
+import { PracticeProgress, type PracticeSyncStatus } from "./PracticeProgress";
+import { applyPracticeRecordsToLocal, loadLocalPracticeRecords, mergePracticeRecords, practiceRecord, recordsMissingFromCloud } from "../practice/practiceHistorySync";
 
 interface PracticeCenterProps {
   ownerId: string;
@@ -25,6 +30,9 @@ interface PracticeCenterProps {
   onEvaluateWriting: (input: WritingEvaluationInput) => Promise<WritingEvaluation>;
   onSaveWritingStudyCards: (cards: SpeakingStudyCard[], context: { question: string; taskType: WritingTaskType }) => Promise<void> | void;
   onSaveObjectiveStudyCards: (cards: SpeakingStudyCard[], context: { skill: ObjectivePracticeSkill }) => Promise<void> | void;
+  onLoadPracticeHistory?: () => Promise<PracticeHistoryRecord[]>;
+  onSavePracticeRecord?: (record: PracticeHistoryRecord) => Promise<void>;
+  onClearPracticeHistory?: (skill: PracticeSkill) => Promise<void>;
 }
 
 export function PracticeCenter({
@@ -35,20 +43,86 @@ export function PracticeCenter({
   onEvaluateWriting,
   onSaveWritingStudyCards,
   onSaveObjectiveStudyCards,
+  onLoadPracticeHistory,
+  onSavePracticeRecord,
+  onClearPracticeHistory,
 }: PracticeCenterProps) {
-  const [tool, setTool] = useState<"home" | "listening" | "reading" | "writing" | "speaking">("home");
+  const [tool, setTool] = useState<"home" | "progress" | PracticeSkill>("home");
+  const [records, setRecords] = useState<PracticeHistoryRecord[]>(() => loadLocalPracticeRecords(typeof window === "undefined" ? null : window.localStorage, ownerId));
+  const [syncStatus, setSyncStatus] = useState<PracticeSyncStatus>(onLoadPracticeHistory ? "syncing" : "local");
+  const [historyRevision, setHistoryRevision] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    const storage = typeof window === "undefined" ? null : window.localStorage;
+    const local = loadLocalPracticeRecords(storage, ownerId);
+    setRecords(local);
+    setHistoryRevision((revision) => revision + 1);
+    if (!onLoadPracticeHistory || !onSavePracticeRecord) {
+      setSyncStatus("local");
+      return () => { cancelled = true; };
+    }
+    setSyncStatus("syncing");
+    onLoadPracticeHistory()
+      .then(async (cloud) => {
+        if (cancelled) return;
+        const merged = mergePracticeRecords(local, cloud);
+        applyPracticeRecordsToLocal(storage, ownerId, merged);
+        setRecords(merged);
+        setHistoryRevision((revision) => revision + 1);
+        const uploads = await Promise.allSettled(recordsMissingFromCloud(local, cloud).map(onSavePracticeRecord));
+        if (!cancelled) setSyncStatus(uploads.some((result) => result.status === "rejected") ? "error" : "synced");
+      })
+      .catch((error) => {
+        console.error("Practice history sync failed:", error);
+        if (!cancelled) setSyncStatus("error");
+      });
+    return () => { cancelled = true; };
+  }, [onLoadPracticeHistory, onSavePracticeRecord, ownerId]);
+
+  const handleAttemptSaved = useCallback((skill: PracticeSkill, attempt: PracticeAttempt) => {
+    const record = practiceRecord(skill, attempt);
+    setRecords((current) => mergePracticeRecords([record], current));
+    if (onSavePracticeRecord) {
+      setSyncStatus("syncing");
+      onSavePracticeRecord(record).then(() => setSyncStatus("synced")).catch((error) => {
+        console.error("Practice result cloud save failed:", error);
+        setSyncStatus("error");
+      });
+    }
+  }, [onSavePracticeRecord]);
+
+  const handleHistoryCleared = useCallback(async (skill: PracticeSkill, retainedAttempts: PracticeAttempt[] = []) => {
+    const retainedRecords = retainedAttempts.map((attempt) => practiceRecord(skill, attempt));
+    setRecords((current) => mergePracticeRecords(retainedRecords, current.filter((record) => record.skill !== skill)));
+    if (onClearPracticeHistory) {
+      setSyncStatus("syncing");
+      try {
+        await onClearPracticeHistory(skill);
+        if (onSavePracticeRecord) await Promise.all(retainedRecords.map(onSavePracticeRecord));
+        setSyncStatus("synced");
+      } catch (error) {
+        console.error("Practice history cloud clear failed:", error);
+        setSyncStatus("error");
+      }
+    }
+  }, [onClearPracticeHistory, onSavePracticeRecord]);
+
+  if (tool === "progress") {
+    return <PracticeProgress records={records} syncStatus={syncStatus} onExit={() => setTool("home")} onStartSkill={setTool} />;
+  }
 
   if (tool === "speaking") {
-    return <SpeakingPractice ownerId={ownerId} nativeLanguage={nativeLanguage} onExit={() => setTool("home")} onEvaluate={onEvaluateSpeaking} onSaveStudyCards={onSaveSpeakingStudyCards} />;
+    return <SpeakingPractice historyRevision={historyRevision} ownerId={ownerId} nativeLanguage={nativeLanguage} onExit={() => setTool("home")} onEvaluate={onEvaluateSpeaking} onSaveStudyCards={onSaveSpeakingStudyCards} onAttemptSaved={(attempt) => handleAttemptSaved("speaking", attempt)} onHistoryCleared={() => handleHistoryCleared("speaking")} />;
   }
   if (tool === "writing") {
-    return <WritingPractice ownerId={ownerId} nativeLanguage={nativeLanguage} onExit={() => setTool("home")} onEvaluate={onEvaluateWriting} onSaveStudyCards={onSaveWritingStudyCards} />;
+    return <WritingPractice historyRevision={historyRevision} ownerId={ownerId} nativeLanguage={nativeLanguage} onExit={() => setTool("home")} onEvaluate={onEvaluateWriting} onSaveStudyCards={onSaveWritingStudyCards} onAttemptSaved={(attempt) => handleAttemptSaved("writing", attempt)} onHistoryCleared={(retained) => handleHistoryCleared("writing", retained)} />;
   }
   if (tool === "reading") {
-    return <ReadingPractice ownerId={ownerId} onExit={() => setTool("home")} onSaveStudyCards={onSaveObjectiveStudyCards} />;
+    return <ReadingPractice historyRevision={historyRevision} ownerId={ownerId} onExit={() => setTool("home")} onSaveStudyCards={onSaveObjectiveStudyCards} onAttemptSaved={(attempt) => handleAttemptSaved("reading", attempt)} onHistoryCleared={() => handleHistoryCleared("reading")} />;
   }
   if (tool === "listening") {
-    return <ListeningPractice ownerId={ownerId} onExit={() => setTool("home")} onSaveStudyCards={onSaveObjectiveStudyCards} />;
+    return <ListeningPractice historyRevision={historyRevision} ownerId={ownerId} onExit={() => setTool("home")} onSaveStudyCards={onSaveObjectiveStudyCards} onAttemptSaved={(attempt) => handleAttemptSaved("listening", attempt)} onHistoryCleared={() => handleHistoryCleared("listening")} />;
   }
 
   return (
@@ -65,6 +139,11 @@ export function PracticeCenter({
           </div>
 
           <div className="mt-9 divide-y divide-[#E8E2D6] border-y border-[#E8E2D6] dark:divide-[#3a2347] dark:border-[#3a2347]">
+            <button type="button" onClick={() => setTool("progress")} className="group flex w-full items-center gap-4 bg-[#F5F1E8] px-3 py-5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF9F1C] dark:bg-[#291c32] sm:gap-6 sm:px-5">
+              <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-[#E2C78C] bg-[#FFF5DC] text-[#76551D] dark:border-[#5a4669] dark:bg-[#33263e] dark:text-[#f6d98e]"><BarChart3 size={25} /></span>
+              <span className="min-w-0 flex-1"><span className="block text-lg font-bold text-[#35312F] dark:text-white">Progress & next practice</span><span className="mt-1 block text-sm leading-6 text-[#7C746F] dark:text-[#bda9ca]">See four-skill trends, your weakest evidence, and the most useful thing to practise next.</span></span>
+              <ChevronRight size={20} className="shrink-0 text-[#B5A48B] transition-transform group-hover:translate-x-1" />
+            </button>
             <button type="button" onClick={() => setTool("listening")} className="group flex w-full items-center gap-4 py-6 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF9F1C] sm:gap-6">
               <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-[#D7C5E5] bg-[#F4EFF8] text-[#654985] dark:border-[#5a4669] dark:bg-[#33263e] dark:text-[#d6bdec]"><Headphones size={25} /></span>
               <span className="min-w-0 flex-1"><span className="block text-lg font-bold text-[#35312F] dark:text-white">Listening</span><span className="mt-1 block text-sm leading-6 text-[#7C746F] dark:text-[#bda9ca]">Play four original sections once, answer forty questions, then unlock the transcript and evidence.</span></span>

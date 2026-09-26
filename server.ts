@@ -23,6 +23,11 @@ import {
   normalizeWritingEvaluation,
   readWritingEvaluationInput,
 } from "./src/server/writing.js";
+import {
+  createPracticeHistoryStoreFromEnv,
+  readPracticeHistoryRecord,
+  readPracticeSkill,
+} from "./src/server/practiceHistory.js";
 
 const aiConfig = readAIConfig();
 const REQUEST_TIMEOUT_MS = aiConfig.timeoutMs;
@@ -49,6 +54,7 @@ const openAI = aiConfig.provider === "openai"
   : null;
 
 const billingStore = createBillingStoreFromEnv();
+const practiceHistoryStore = createPracticeHistoryStoreFromEnv();
 const paddleConfig = readPaddleServerConfig();
 
 const HINA_GEMINI_RESPONSE_SCHEMA = {
@@ -522,6 +528,22 @@ async function getBillingSubject(req: express.Request, options: { requireVerifie
   return `ip:${getRequestIp(req)}`;
 }
 
+async function requireFirebaseUser(req: express.Request) {
+  const authorization = Array.isArray(req.headers.authorization)
+    ? req.headers.authorization[0]
+    : req.headers.authorization;
+  const token = extractBearerToken(authorization);
+  if (!token) throw Object.assign(new Error("Authentication required."), { status: 401 });
+  try {
+    const firebaseUser = await verifyFirebaseIdTokenWithRest(token, { apiKey: getFirebaseWebApiKey() });
+    assertFirebaseUserCanUseProtectedApis(firebaseUser);
+    return firebaseUser;
+  } catch (error) {
+    if (isEmailVerificationRequiredError(error)) throw error;
+    throw Object.assign(new Error("Authentication failed."), { status: 401 });
+  }
+}
+
 function sendEmailVerificationRequired(res: express.Response) {
   return res.status(403).json({
     error: "email_not_verified",
@@ -564,6 +586,52 @@ app.get("/api/billing/me", async (req, res) => {
   } catch (error) {
     console.error("Billing Error:", error);
     res.status(500).json({ error: "billing_failed" });
+  }
+});
+
+app.get("/api/practice/history", async (req, res) => {
+  try {
+    const user = await requireFirebaseUser(req);
+    res.json({ records: await practiceHistoryStore.list(user.uid) });
+  } catch (error) {
+    if (isEmailVerificationRequiredError(error)) return sendEmailVerificationRequired(res);
+    const status = getErrorStatus(error);
+    res.status(status === 401 ? 401 : 500).json({ error: status === 401 ? "authentication_required" : "practice_history_failed" });
+  }
+});
+
+app.put("/api/practice/history/:id", async (req, res) => {
+  try {
+    const user = await requireFirebaseUser(req);
+    const record = readPracticeHistoryRecord(req.body);
+    if (record.id !== req.params.id) return res.status(400).json({ error: "practice_id_mismatch" });
+    await practiceHistoryStore.upsert(user.uid, record);
+    res.json({ ok: true });
+  } catch (error) {
+    if (isEmailVerificationRequiredError(error)) return sendEmailVerificationRequired(res);
+    const status = getErrorStatus(error);
+    if (status === 401) return res.status(401).json({ error: "authentication_required" });
+    if (getErrorMessage(error).startsWith("Invalid") || getErrorMessage(error).includes("does not match") || getErrorMessage(error).includes("too large")) {
+      return res.status(400).json({ error: getErrorMessage(error) });
+    }
+    console.error("Practice History Save Error:", error);
+    res.status(500).json({ error: "practice_history_failed" });
+  }
+});
+
+app.delete("/api/practice/history", async (req, res) => {
+  try {
+    const user = await requireFirebaseUser(req);
+    const skill = readPracticeSkill(req.query.skill);
+    await practiceHistoryStore.remove(user.uid, skill);
+    res.json({ ok: true });
+  } catch (error) {
+    if (isEmailVerificationRequiredError(error)) return sendEmailVerificationRequired(res);
+    const status = getErrorStatus(error);
+    if (status === 401) return res.status(401).json({ error: "authentication_required" });
+    if (getErrorMessage(error).startsWith("Invalid")) return res.status(400).json({ error: getErrorMessage(error) });
+    console.error("Practice History Delete Error:", error);
+    res.status(500).json({ error: "practice_history_failed" });
   }
 });
 

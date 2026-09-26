@@ -26,3 +26,11 @@ test("server exposes the authenticated writing practice evaluation endpoint", ()
   assert.match(source, /readWritingEvaluationInput/);
   assert.match(source, /generateWritingEvaluation/);
 });
+
+test("server exposes authenticated practice history synchronization endpoints", () => {
+  const source = readFileSync(new URL("../../server.ts", import.meta.url), "utf8");
+  assert.match(source, /app\.get\("\/api\/practice\/history"/);
+  assert.match(source, /app\.put\("\/api\/practice\/history\/:id"/);
+  assert.match(source, /app\.delete\("\/api\/practice\/history"/);
+  assert.match(source, /requireFirebaseUser/);
+});

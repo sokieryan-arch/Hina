@@ -5,14 +5,18 @@ import { ArrowLeft, CheckCircle2, Clock3, Headphones, PauseCircle, Play, RotateC
 import { LISTENING_QUESTIONS, LISTENING_SECTIONS } from "../practice/listeningTests";
 import { loadObjectiveAttempts, objectiveAttemptsForSkill, saveObjectiveAttempts } from "../practice/objectiveHistory";
 import { isObjectiveAnswerCorrect, objectiveBand, objectiveStudyCards } from "../practice/objectiveScoring";
+import { clearObjectiveDraft, loadObjectiveDraft, saveObjectiveDraft } from "../practice/objectiveDraft";
 import type { ObjectiveAttempt, ObjectivePracticeSkill, SpeakingStudyCard } from "../types";
 import { ObjectiveHistory } from "./ObjectiveHistory";
 import { ObjectiveQuestionField } from "./ObjectiveQuestionField";
 
 interface ListeningPracticeProps {
   ownerId: string;
+  historyRevision?: number;
   onExit: () => void;
   onSaveStudyCards: (cards: SpeakingStudyCard[], context: { skill: ObjectivePracticeSkill }) => Promise<void> | void;
+  onAttemptSaved?: (attempt: ObjectiveAttempt) => Promise<void> | void;
+  onHistoryCleared?: () => Promise<void> | void;
 }
 
 const TEST_SECONDS = 30 * 60;
@@ -21,7 +25,7 @@ function formatTime(seconds: number) {
   return `${Math.floor(seconds / 60).toString().padStart(2, "0")}:${(seconds % 60).toString().padStart(2, "0")}`;
 }
 
-export function ListeningPractice({ ownerId, onExit, onSaveStudyCards }: ListeningPracticeProps) {
+export function ListeningPractice({ ownerId, historyRevision, onExit, onSaveStudyCards, onAttemptSaved, onHistoryCleared }: ListeningPracticeProps) {
   const [phase, setPhase] = useState<"intro" | "active" | "result">("intro");
   const [sectionIndex, setSectionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -33,12 +37,14 @@ export function ListeningPractice({ ownerId, onExit, onSaveStudyCards }: Listeni
   const [attempts, setAttempts] = useState<ObjectiveAttempt[]>(() => loadObjectiveAttempts(typeof window === "undefined" ? null : window.localStorage, ownerId));
   const [currentAttempt, setCurrentAttempt] = useState<ObjectiveAttempt | null>(null);
   const [studySaveStatus, setStudySaveStatus] = useState<"idle" | "saving" | "saved" | "failed">("idle");
+  const [savedDraft, setSavedDraft] = useState(() => loadObjectiveDraft(typeof window === "undefined" ? null : window.localStorage, ownerId, "listening"));
   const playbackToken = useRef(0);
   const listeningAttempts = useMemo(() => objectiveAttemptsForSkill(attempts, "listening"), [attempts]);
 
   useEffect(() => {
     setAttempts(loadObjectiveAttempts(typeof window === "undefined" ? null : window.localStorage, ownerId));
-  }, [ownerId]);
+    setSavedDraft(loadObjectiveDraft(typeof window === "undefined" ? null : window.localStorage, ownerId, "listening"));
+  }, [historyRevision, ownerId]);
 
   const stopSpeech = useCallback(() => {
     playbackToken.current += 1;
@@ -53,6 +59,8 @@ export function ListeningPractice({ ownerId, onExit, onSaveStudyCards }: Listeni
 
   const startTest = useCallback(() => {
     stopSpeech();
+    clearObjectiveDraft(typeof window === "undefined" ? null : window.localStorage, ownerId, "listening");
+    setSavedDraft(null);
     setAnswers({});
     setSectionIndex(0);
     setRemainingSeconds(TEST_SECONDS);
@@ -62,7 +70,21 @@ export function ListeningPractice({ ownerId, onExit, onSaveStudyCards }: Listeni
     setCurrentAttempt(null);
     setStudySaveStatus("idle");
     setPhase("active");
-  }, [stopSpeech]);
+  }, [ownerId, stopSpeech]);
+
+  const resumeTest = useCallback(() => {
+    const draft = loadObjectiveDraft(typeof window === "undefined" ? null : window.localStorage, ownerId, "listening");
+    if (!draft) return;
+    stopSpeech();
+    setAnswers(draft.answers);
+    setSectionIndex(Math.min(LISTENING_SECTIONS.length - 1, draft.sectionIndex));
+    setRemainingSeconds(draft.remainingSeconds);
+    setStartedAt(Date.now() - (TEST_SECONDS - draft.remainingSeconds) * 1000);
+    setPlayedSections(new Set(draft.playedSectionIds));
+    setCurrentAttempt(null);
+    setStudySaveStatus("idle");
+    setPhase("active");
+  }, [ownerId, stopSpeech]);
 
   const playSection = useCallback((index: number) => {
     const section = LISTENING_SECTIONS[index];
@@ -119,12 +141,28 @@ export function ListeningPractice({ ownerId, onExit, onSaveStudyCards }: Listeni
     setAttempts((existing) => saveObjectiveAttempts(typeof window === "undefined" ? null : window.localStorage, ownerId, [attempt, ...existing]));
     setCurrentAttempt(attempt);
     setPhase("result");
+    clearObjectiveDraft(typeof window === "undefined" ? null : window.localStorage, ownerId, "listening");
+    setSavedDraft(null);
+    Promise.resolve(onAttemptSaved?.(attempt)).catch((historyError) => console.error("Failed to sync listening attempt:", historyError));
     const cards = objectiveStudyCards("listening", LISTENING_QUESTIONS, answers);
     if (cards.length) {
       setStudySaveStatus("saving");
       Promise.resolve(onSaveStudyCards(cards, { skill: "listening" })).then(() => setStudySaveStatus("saved")).catch(() => setStudySaveStatus("failed"));
     }
-  }, [answers, onSaveStudyCards, ownerId, phase, startedAt, stopSpeech]);
+  }, [answers, onAttemptSaved, onSaveStudyCards, ownerId, phase, startedAt, stopSpeech]);
+
+  useEffect(() => {
+    if (phase !== "active") return;
+    saveObjectiveDraft(typeof window === "undefined" ? null : window.localStorage, ownerId, {
+      skill: "listening",
+      answers,
+      sectionIndex,
+      remainingSeconds,
+      startedAt,
+      updatedAt: Date.now(),
+      playedSectionIds: Array.from(playedSections),
+    });
+  }, [answers, ownerId, phase, playedSections, remainingSeconds, sectionIndex, startedAt]);
 
   useEffect(() => {
     if (phase !== "active") return;
@@ -139,6 +177,7 @@ export function ListeningPractice({ ownerId, onExit, onSaveStudyCards }: Listeni
   const clearHistory = () => {
     if (typeof window !== "undefined" && !window.confirm("Clear locally saved Listening history?")) return;
     setAttempts((existing) => saveObjectiveAttempts(window.localStorage, ownerId, existing.filter((attempt) => attempt.skill !== "listening")));
+    Promise.resolve(onHistoryCleared?.()).catch((historyError) => console.error("Failed to clear cloud listening history:", historyError));
   };
 
   if (phase === "intro") {
@@ -149,6 +188,7 @@ export function ListeningPractice({ ownerId, onExit, onSaveStudyCards }: Listeni
         <p className="mt-3 max-w-2xl text-sm leading-6 text-[#746B66] dark:text-[#bda9ca]">Four original sections move from everyday conversation to an academic lecture. Each section plays once, and its transcript stays hidden until you submit.</p>
         <div className="mt-8 grid grid-cols-3 border-y border-[#E8E2D6] dark:border-[#3a2347]">{[['4', 'sections'], ['40', 'questions'], ['30', 'minutes']].map(([value, label], index) => <div key={label} className={`py-5 text-center ${index ? "border-l border-[#E8E2D6] dark:border-[#3a2347]" : ""}`}><strong className="block text-2xl text-[#2E2A27] dark:text-white">{value}</strong><span className="text-xs uppercase text-[#8B817A] dark:text-[#a58ebd]">{label}</span></div>)}</div>
         <button type="button" onClick={startTest} className="mt-7 inline-flex h-12 items-center gap-2 rounded-lg bg-[#4B3865] px-5 text-sm font-bold text-white hover:bg-[#5d477b] dark:bg-[#f2d276] dark:text-[#2c2430]"><Headphones size={18} /> Start full test</button>
+        {savedDraft ? <button type="button" onClick={resumeTest} className="ml-3 mt-7 inline-flex h-12 items-center gap-2 rounded-lg border border-[#D7C5E5] px-5 text-sm font-bold text-[#654985] hover:bg-[#F4EFF8] dark:border-[#5a4669] dark:text-[#d6bdec]"><RotateCcw size={17} /> Resume · {formatTime(savedDraft.remainingSeconds)}</button> : null}
         <p className="mt-4 text-xs leading-5 text-[#9A8F88] dark:text-[#8e7b9b]">Original Hina scripts use your browser's English voices. The raw-score estimate is deterministic and is not an official IELTS result.</p>
         <ObjectiveHistory skill="listening" attempts={listeningAttempts} onRestart={startTest} onClear={clearHistory} />
       </motion.div></div></main>
@@ -174,7 +214,7 @@ export function ListeningPractice({ ownerId, onExit, onSaveStudyCards }: Listeni
   const answeredCount = Object.values(answers).filter((answer) => String(answer).trim()).length;
   return (
     <main className="flex min-h-0 flex-1 flex-col overflow-hidden bg-[#FDFBF7] dark:bg-[#1c1224]">
-      <header className="flex shrink-0 flex-wrap items-center gap-3 border-b border-[#E8E2D6] px-4 py-3 dark:border-[#3a2347] sm:px-7"><button type="button" onClick={() => { if (window.confirm("Leave this Listening test? Your unfinished answers will not be saved.")) { stopSpeech(); setPhase("intro"); } }} className="flex items-center gap-2 text-sm font-semibold text-[#746B66] dark:text-[#bda9ca]"><ArrowLeft size={17} /> Exit</button><div className="ml-auto flex items-center gap-2 text-sm font-bold text-[#3E3834] dark:text-white"><Clock3 size={17} /> {formatTime(remainingSeconds)}</div><button type="button" onClick={finishTest} className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#4B3865] px-3 text-xs font-bold text-white dark:bg-[#f2d276] dark:text-[#2c2430]"><Send size={14} /> Submit</button></header>
+      <header className="flex shrink-0 flex-wrap items-center gap-3 border-b border-[#E8E2D6] px-4 py-3 dark:border-[#3a2347] sm:px-7"><button type="button" onClick={() => { stopSpeech(); setSavedDraft(loadObjectiveDraft(window.localStorage, ownerId, "listening")); setPhase("intro"); }} className="flex items-center gap-2 text-sm font-semibold text-[#746B66] dark:text-[#bda9ca]"><ArrowLeft size={17} /> Save & exit</button><div className="ml-auto flex items-center gap-2 text-sm font-bold text-[#3E3834] dark:text-white"><Clock3 size={17} /> {formatTime(remainingSeconds)}</div><button type="button" onClick={finishTest} className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#4B3865] px-3 text-xs font-bold text-white dark:bg-[#f2d276] dark:text-[#2c2430]"><Send size={14} /> Submit</button></header>
       <nav className="flex shrink-0 overflow-x-auto border-b border-[#E8E2D6] px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden dark:border-[#3a2347] sm:px-7">{LISTENING_SECTIONS.map((item, index) => { const count = item.questions.filter((question) => answers[question.id]?.trim()).length; return <button type="button" key={item.id} onClick={() => setSectionIndex(index)} className={`min-w-max border-b-2 px-4 py-3 text-xs font-bold ${index === sectionIndex ? "border-[#7656A0] text-[#5A4178] dark:text-[#d6bdec]" : "border-transparent text-[#887D75] dark:text-[#9d8aaa]"}`}>Section {index + 1} · {count}/10</button>; })}<span className="ml-auto min-w-max self-center pl-4 text-xs text-[#91877F] dark:text-[#9d8aaa]">{answeredCount}/40 answered</span></nav>
       <div className="mx-auto w-full max-w-4xl flex-1 overflow-y-auto px-4 py-7 sm:px-7">
         <div className="flex flex-col gap-5 border-b border-[#E8E2D6] pb-6 dark:border-[#3a2347] sm:flex-row sm:items-center sm:justify-between"><div><p className="text-xs font-bold uppercase tracking-widest text-[#7656A0] dark:text-[#d6bdec]">{section.context}</p><h2 className="mt-2 font-display text-2xl font-semibold text-[#2E2A27] dark:text-white">{section.title}</h2><p className="mt-2 text-sm text-[#7C746F] dark:text-[#bda9ca]">Read Questions {section.questions[0].number}–{section.questions[section.questions.length - 1].number}, then play this section once.</p></div><button type="button" onClick={() => playSection(sectionIndex)} disabled={played || Boolean(playingSectionId)} className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#4B3865] px-5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:bg-[#D8D0DC] disabled:text-[#857A89] dark:disabled:bg-[#392943]">{playingSectionId === section.id ? <><Volume2 size={18} className="animate-pulse" /> Playing…</> : played ? <><PauseCircle size={18} /> Played once</> : <><Play size={18} /> Play section</>}</button></div>

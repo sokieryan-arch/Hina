@@ -5,7 +5,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { nanoid } from "nanoid";
-import { AppView, BillingSummary, HinaSpaceView, LanguageCode, LanguageSettings, Message, ObjectivePracticeSkill, ProactiveSettings, SpeakingEvaluation, SpeakingEvaluationInput, SpeakingPart, SpeakingStudyCard, UserProfile, WishlistItem, WritingEvaluation, WritingEvaluationInput, WritingTaskType } from "./types";
+import { AppView, BillingSummary, HinaSpaceView, LanguageCode, LanguageSettings, Message, ObjectivePracticeSkill, PracticeHistoryRecord, PracticeHistoryResponse, PracticeSkill, ProactiveSettings, SpeakingEvaluation, SpeakingEvaluationInput, SpeakingPart, SpeakingStudyCard, UserProfile, WishlistItem, WritingEvaluation, WritingEvaluationInput, WritingTaskType } from "./types";
 import { ChatMessage } from "./components/ChatMessage";
 import { SettingsModal } from "./components/SettingsModal";
 import { AuthPanel } from "./components/AuthPanel";
@@ -253,6 +253,32 @@ export default function App() {
     }
     return headers;
   }, [user]);
+
+  const loadPracticeHistory = useCallback(async () => {
+    const response = await fetch("/api/practice/history", { headers: await getJsonHeaders() });
+    const data = await parseJsonResponse(response) as Partial<PracticeHistoryResponse> & { error?: string };
+    if (!response.ok) throw new Error(data.error || "practice_history_failed");
+    return Array.isArray(data.records) ? data.records : [];
+  }, [getJsonHeaders]);
+
+  const savePracticeRecord = useCallback(async (record: PracticeHistoryRecord) => {
+    const response = await fetch(`/api/practice/history/${encodeURIComponent(record.id)}`, {
+      method: "PUT",
+      headers: await getJsonHeaders(),
+      body: JSON.stringify(record),
+    });
+    const data = await parseJsonResponse(response);
+    if (!response.ok) throw new Error(data.error || "practice_history_failed");
+  }, [getJsonHeaders]);
+
+  const clearPracticeHistory = useCallback(async (skill: PracticeSkill) => {
+    const response = await fetch(`/api/practice/history?skill=${encodeURIComponent(skill)}`, {
+      method: "DELETE",
+      headers: await getJsonHeaders(),
+    });
+    const data = await parseJsonResponse(response);
+    if (!response.ok) throw new Error(data.error || "practice_history_failed");
+  }, [getJsonHeaders]);
 
   const refreshBilling = useCallback(async () => {
     if (!user) {
@@ -876,6 +902,9 @@ export default function App() {
           onEvaluateWriting={evaluateWriting}
           onSaveWritingStudyCards={saveWritingStudyCards}
           onSaveObjectiveStudyCards={saveObjectiveStudyCards}
+          onLoadPracticeHistory={loadPracticeHistory}
+          onSavePracticeRecord={savePracticeRecord}
+          onClearPracticeHistory={clearPracticeHistory}
           practiceOwnerId={user.uid}
           displayLanguage={displayLanguage}
           nativeLanguage={languageSettings.nativeLanguage}

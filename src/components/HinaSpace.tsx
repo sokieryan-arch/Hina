@@ -15,7 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { nanoid } from "nanoid";
-import type { HinaSpaceView, LanguageCode, Message, ObjectivePracticeSkill, SpeakingEvaluation, SpeakingEvaluationInput, SpeakingStudyCard, SpeakingPart, WishlistItem, WishlistKind, WritingEvaluation, WritingEvaluationInput, WritingTaskType } from "../types";
+import type { HinaSpaceView, LanguageCode, Message, ObjectivePracticeSkill, PracticeHistoryRecord, PracticeSkill, SpeakingEvaluation, SpeakingEvaluationInput, SpeakingStudyCard, SpeakingPart, WishlistItem, WishlistKind, WritingEvaluation, WritingEvaluationInput, WritingTaskType } from "../types";
 import { uiText } from "../i18n/ui";
 import { PracticeCenter } from "./PracticeCenter";
 
@@ -30,6 +30,9 @@ interface HinaSpaceProps {
   onEvaluateWriting?: (input: WritingEvaluationInput) => Promise<WritingEvaluation>;
   onSaveWritingStudyCards?: (cards: SpeakingStudyCard[], context: { question: string; taskType: WritingTaskType }) => Promise<void> | void;
   onSaveObjectiveStudyCards?: (cards: SpeakingStudyCard[], context: { skill: ObjectivePracticeSkill }) => Promise<void> | void;
+  onLoadPracticeHistory?: () => Promise<PracticeHistoryRecord[]>;
+  onSavePracticeRecord?: (record: PracticeHistoryRecord) => Promise<void>;
+  onClearPracticeHistory?: (skill: PracticeSkill) => Promise<void>;
   practiceOwnerId?: string;
   displayLanguage: LanguageCode;
   nativeLanguage?: LanguageCode;
@@ -495,6 +498,9 @@ export function HinaSpace({
   onEvaluateWriting = async () => { throw new Error("Writing feedback is unavailable."); },
   onSaveWritingStudyCards = () => {},
   onSaveObjectiveStudyCards = () => {},
+  onLoadPracticeHistory,
+  onSavePracticeRecord,
+  onClearPracticeHistory,
   practiceOwnerId = "preview",
   displayLanguage,
   nativeLanguage = "zh-CN",
@@ -509,6 +515,9 @@ export function HinaSpace({
       onEvaluateWriting={onEvaluateWriting}
       onSaveWritingStudyCards={onSaveWritingStudyCards}
       onSaveObjectiveStudyCards={onSaveObjectiveStudyCards}
+      onLoadPracticeHistory={onLoadPracticeHistory}
+      onSavePracticeRecord={onSavePracticeRecord}
+      onClearPracticeHistory={onClearPracticeHistory}
     />
   );
   if (view === "moments") return <MomentsPage displayLanguage={displayLanguage} />;

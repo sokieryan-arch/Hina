@@ -27,10 +27,13 @@ type WritingPhase = "drafting" | "evaluating" | "result";
 
 interface WritingPracticeProps {
   ownerId: string;
+  historyRevision?: number;
   nativeLanguage: LanguageCode;
   onExit: () => void;
   onEvaluate: (input: WritingEvaluationInput) => Promise<WritingEvaluation>;
   onSaveStudyCards: (cards: SpeakingStudyCard[], context: { question: string; taskType: WritingTaskType }) => Promise<void> | void;
+  onAttemptSaved?: (attempt: WritingAttempt) => Promise<void> | void;
+  onHistoryCleared?: (retainedAttempts: WritingAttempt[]) => Promise<void> | void;
 }
 
 const SCORE_LABELS: Array<{ key: keyof WritingScores; label: string }> = [
@@ -71,7 +74,7 @@ function scoreLabels(taskType: WritingTaskType) {
     : item);
 }
 
-export function WritingPractice({ ownerId, nativeLanguage, onExit, onEvaluate, onSaveStudyCards }: WritingPracticeProps) {
+export function WritingPractice({ ownerId, historyRevision, nativeLanguage, onExit, onEvaluate, onSaveStudyCards, onAttemptSaved, onHistoryCleared }: WritingPracticeProps) {
   const [selectedTask, setSelectedTask] = useState<WritingTaskType | null>(null);
   const [prompt, setPrompt] = useState<WritingPrompt | null>(null);
   const [mode, setMode] = useState<WritingMode>("free");
@@ -90,7 +93,7 @@ export function WritingPractice({ ownerId, nativeLanguage, onExit, onEvaluate, o
 
   useEffect(() => {
     setAttempts(loadWritingAttempts(typeof window === "undefined" ? null : window.localStorage, ownerId));
-  }, [ownerId]);
+  }, [historyRevision, ownerId]);
 
   useEffect(() => {
     if (mode !== "timed" || !timerStarted || phase !== "drafting") return;
@@ -153,6 +156,7 @@ export function WritingPractice({ ownerId, nativeLanguage, onExit, onEvaluate, o
       setCurrentAttempt(attempt);
       setEvaluation(result);
       setPhase("result");
+      Promise.resolve(onAttemptSaved?.(attempt)).catch((historyError) => console.error("Failed to sync writing attempt:", historyError));
       setStudySaveStatus("saving");
       Promise.resolve(onSaveStudyCards(result.studyCards, { question: prompt.question, taskType: prompt.taskType }))
         .then(() => setStudySaveStatus("saved"))
@@ -191,7 +195,9 @@ export function WritingPractice({ ownerId, nativeLanguage, onExit, onEvaluate, o
 
   const clearTaskHistory = () => {
     if (!selectedTask || (typeof window !== "undefined" && !window.confirm(`Clear locally saved ${selectedTask === "task1" ? "Task 1" : "Task 2"} history?`))) return;
-    setAttempts((existing) => saveWritingAttempts(typeof window === "undefined" ? null : window.localStorage, ownerId, existing.filter((attempt) => attempt.taskType !== selectedTask)));
+    const retainedAttempts = attempts.filter((attempt) => attempt.taskType !== selectedTask);
+    setAttempts(saveWritingAttempts(typeof window === "undefined" ? null : window.localStorage, ownerId, retainedAttempts));
+    Promise.resolve(onHistoryCleared?.(retainedAttempts)).catch((historyError) => console.error("Failed to clear cloud writing history:", historyError));
   };
 
   if (!selectedTask) {

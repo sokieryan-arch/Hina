@@ -280,6 +280,20 @@ export interface ObjectiveAttempt {
   wrongQuestionIds: string[];
 }
 
+export type PracticeSkill = "listening" | "reading" | "writing" | "speaking";
+export type PracticeAttempt = ObjectiveAttempt | WritingAttempt | SpeakingAttempt;
+
+export interface PracticeHistoryRecord {
+  id: string;
+  skill: PracticeSkill;
+  createdAt: number;
+  attempt: PracticeAttempt;
+}
+
+export interface PracticeHistoryResponse {
+  records: PracticeHistoryRecord[];
+}
+
 export interface WishlistItem {
   id: string;
   kind: WishlistKind;

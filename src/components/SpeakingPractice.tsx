@@ -35,10 +35,13 @@ type PracticePhase = "ready" | "preparing" | "recording" | "recorded" | "evaluat
 
 interface SpeakingPracticeProps {
   ownerId: string;
+  historyRevision?: number;
   nativeLanguage: LanguageCode;
   onExit?: () => void;
   onEvaluate: (input: SpeakingEvaluationInput) => Promise<SpeakingEvaluation>;
   onSaveStudyCards: (cards: SpeakingStudyCard[], context: { part: SpeakingPart; question: string }) => Promise<void> | void;
+  onAttemptSaved?: (attempt: SpeakingAttempt) => Promise<void> | void;
+  onHistoryCleared?: () => Promise<void> | void;
 }
 
 const PARTS: Array<{
@@ -125,7 +128,7 @@ function PromptCard({ question }: { question: SpeakingQuestion }) {
   );
 }
 
-export function SpeakingPractice({ ownerId, nativeLanguage, onExit, onEvaluate, onSaveStudyCards }: SpeakingPracticeProps) {
+export function SpeakingPractice({ ownerId, historyRevision, nativeLanguage, onExit, onEvaluate, onSaveStudyCards, onAttemptSaved, onHistoryCleared }: SpeakingPracticeProps) {
   const [part, setPart] = useState<SpeakingPart | null>(null);
   const [questionIndex, setQuestionIndex] = useState(0);
   const [phase, setPhase] = useState<PracticePhase>("ready");
@@ -149,7 +152,7 @@ export function SpeakingPractice({ ownerId, nativeLanguage, onExit, onEvaluate, 
 
   useEffect(() => {
     setAttempts(loadSpeakingAttempts(typeof window === "undefined" ? null : window.localStorage, ownerId));
-  }, [ownerId]);
+  }, [historyRevision, ownerId]);
 
   const releaseMicrophone = () => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
@@ -295,6 +298,7 @@ export function SpeakingPractice({ ownerId, nativeLanguage, onExit, onEvaluate, 
       setCurrentAttempt(attempt);
       setEvaluation(result);
       setPhase("result");
+      Promise.resolve(onAttemptSaved?.(attempt)).catch((historyError) => console.error("Failed to sync speaking attempt:", historyError));
       setStudySaveStatus("saving");
       Promise.resolve(onSaveStudyCards(result.studyCards, { part: question.part, question: question.question }))
         .then(() => setStudySaveStatus("saved"))
@@ -342,6 +346,7 @@ export function SpeakingPractice({ ownerId, nativeLanguage, onExit, onEvaluate, 
   const clearPracticeHistory = () => {
     if (typeof window !== "undefined" && !window.confirm("Clear all locally saved speaking practice history?")) return;
     setAttempts(saveSpeakingAttempts(typeof window === "undefined" ? null : window.localStorage, ownerId, []));
+    Promise.resolve(onHistoryCleared?.()).catch((historyError) => console.error("Failed to clear cloud speaking history:", historyError));
   };
 
   const nextQuestion = () => {

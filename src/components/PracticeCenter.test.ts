@@ -20,4 +20,5 @@ test("practice center offers all four IELTS skills", () => {
   assert.match(markup, />Writing</);
   assert.match(markup, /Task 1 visuals/);
   assert.match(markup, /Task 2 argument/);
+  assert.match(markup, /Progress &amp; next practice/);
 });
