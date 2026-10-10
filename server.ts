@@ -29,6 +29,12 @@ import {
   readPracticeSkill,
 } from "./src/server/practiceHistory.js";
 
+import {
+  getAllowedNativeAppOrigin,
+  NATIVE_APP_CORS_HEADERS,
+  NATIVE_APP_CORS_METHODS,
+} from "./src/server/cors.js";
+
 const aiConfig = readAIConfig();
 const REQUEST_TIMEOUT_MS = aiConfig.timeoutMs;
 const SPEAKING_TIMEOUT_MS = Math.max(
@@ -552,6 +558,20 @@ function sendEmailVerificationRequired(res: express.Response) {
 }
 
 const app = express();
+
+app.use((req, res, next) => {
+  const allowedOrigin = getAllowedNativeAppOrigin(req.headers.origin);
+  if (!allowedOrigin) return next();
+
+  res.setHeader("Access-Control-Allow-Origin", allowedOrigin);
+  res.setHeader("Access-Control-Allow-Methods", NATIVE_APP_CORS_METHODS);
+  res.setHeader("Access-Control-Allow-Headers", NATIVE_APP_CORS_HEADERS);
+  res.setHeader("Access-Control-Max-Age", "86400");
+  res.vary("Origin");
+
+  if (req.method === "OPTIONS") return res.sendStatus(204);
+  next();
+});
 
 app.post("/api/paddle/webhook", express.raw({ type: "application/json", limit: "1mb" }), async (req, res) => {
   try {
